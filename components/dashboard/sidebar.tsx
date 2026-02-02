@@ -13,6 +13,7 @@ import {
   Settings,
   Store,
   Truck,
+  Shield,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -46,9 +47,14 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Wishlist', icon: Package, href: '/dashboard/wishlist' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' },
     ],
+    super_admin: [
+      { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
+      { label: 'Add Owners', icon: Shield, href: '/dashboard/admin/owners' },
+      { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
+    ],
   }
 
-  const items = user ? menuItems[user.role] : []
+  const items = user ? (menuItems[user.role as keyof typeof menuItems] ?? menuItems.customer) : []
 
   return (
     <aside className="w-64 h-full bg-primary text-primary-foreground border-r border-sidebar-border shadow-sm flex flex-col">

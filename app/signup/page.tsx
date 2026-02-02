@@ -1,8 +1,6 @@
 'use client'
 
-import React from "react"
-
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -12,39 +10,50 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth-context'
 import { Spinner } from '@/components/ui/spinner'
 
-export default function LoginPage() {
+export default function SignUpPage() {
   const router = useRouter()
-  const { login, isLoading } = useAuth()
+  const { register, isLoading } = useAuth()
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters')
+      return
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
     try {
-      await login(email, password)
+      await register(name, email, password)
       router.push('/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(err instanceof Error ? err.message : 'Registration failed')
     }
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
-        {/* Header */}
         <div className="text-center">
           <h1 className="text-4xl font-bold text-primary mb-2">BiasharaHub</h1>
-          <p className="text-muted-foreground text-sm">Business Management Platform for African SMEs</p>
+          <p className="text-muted-foreground text-sm">Create a customer account to shop</p>
         </div>
 
-        {/* Login Card */}
         <Card className="border-border/50 shadow-lg">
           <CardHeader className="space-y-2">
-            <CardTitle className="text-2xl text-center">Welcome Back</CardTitle>
-            <CardDescription className="text-center">Sign in to your account to continue</CardDescription>
+            <CardTitle className="text-2xl text-center">Create Account</CardTitle>
+            <CardDescription className="text-center">
+              Sign up as a customer to browse and place orders
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {error && (
@@ -54,6 +63,22 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="name" className="text-sm font-medium text-foreground">
+                  Full Name
+                </label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Jane Mwangi"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={isLoading}
+                  required
+                  className="h-10"
+                />
+              </div>
+
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium text-foreground">
                   Email Address
@@ -82,6 +107,24 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
                   required
+                  minLength={6}
+                  className="h-10"
+                />
+                <p className="text-xs text-muted-foreground">At least 6 characters</p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
+                  Confirm Password
+                </label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isLoading}
+                  required
                   className="h-10"
                 />
               </div>
@@ -94,49 +137,25 @@ export default function LoginPage() {
                 {isLoading ? (
                   <>
                     <Spinner className="w-4 h-4 mr-2" />
-                    Signing in...
+                    Creating account...
                   </>
                 ) : (
-                  'Sign In'
+                  'Sign Up'
                 )}
               </Button>
             </form>
 
             <p className="text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{' '}
-              <Link href="/signup" className="text-primary font-medium hover:underline">
-                Sign up as customer
+              Already have an account?{' '}
+              <Link href="/login" className="text-primary font-medium hover:underline">
+                Sign in
               </Link>
             </p>
-
-            {/* Demo Credentials */}
-            <div className="pt-4 border-t border-border">
-              <p className="text-xs text-muted-foreground font-medium mb-3">Demo Accounts:</p>
-              <div className="space-y-2 text-xs">
-                <div className="bg-secondary/30 p-3 rounded-md">
-                  <p className="font-medium text-foreground">Platform Admin:</p>
-                  <p className="text-muted-foreground">admin@biashara.com / password123</p>
-                </div>
-                <div className="bg-secondary/30 p-3 rounded-md">
-                  <p className="font-medium text-foreground">Owner:</p>
-                  <p className="text-muted-foreground">owner@biashara.com / password123</p>
-                </div>
-                <div className="bg-accent/20 p-3 rounded-md">
-                  <p className="font-medium text-foreground">Staff:</p>
-                  <p className="text-muted-foreground">staff@biashara.com / password123</p>
-                </div>
-                <div className="bg-secondary/30 p-3 rounded-md">
-                  <p className="font-medium text-foreground">Customer:</p>
-                  <p className="text-muted-foreground">customer@biashara.com / password123</p>
-                </div>
-              </div>
-            </div>
           </CardContent>
         </Card>
 
-        {/* Footer */}
-        <p className="text-center text-sm text-muted-foreground">
-          © 2026 BiasharaHub. All rights reserved.
+        <p className="text-center text-xs text-muted-foreground">
+          Business owners and staff are added by their organization. Contact your admin to get access.
         </p>
       </div>
     </div>
