@@ -20,6 +20,8 @@ export default function DashboardPage() {
       return <CustomerDashboard />
     case 'super_admin':
       return <AdminDashboard />
+    case 'assistant_admin':
+      return <AdminDashboard />
     default:
       return null
   }

@@ -37,13 +37,12 @@ export default function StaffManagementPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [addName, setAddName] = useState('')
   const [addEmail, setAddEmail] = useState('')
-  const [addPassword, setAddPassword] = useState('')
   const [addError, setAddError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loadingStaff, setLoadingStaff] = useState(USE_API)
 
   useEffect(() => {
-    if (USE_API && user?.role === 'owner') {
+    if (USE_API && (user?.role === 'owner' || user?.role === 'super_admin')) {
       listStaff()
         .then((users) =>
           setStaff(
@@ -62,12 +61,13 @@ export default function StaffManagementPage() {
     }
   }, [user?.role])
 
-  if (user?.role !== 'owner') {
+  const canManageStaff = user?.role === 'owner' || user?.role === 'super_admin'
+  if (!canManageStaff) {
     return (
       <div className="p-8">
         <Card className="border-border">
           <CardContent className="py-16 text-center">
-            <p className="text-foreground font-medium">This page is only available to business owners.</p>
+            <p className="text-foreground font-medium">This page is only available to business owners and platform admins.</p>
           </CardContent>
         </Card>
       </div>
@@ -98,13 +98,9 @@ export default function StaffManagementPage() {
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault()
     setAddError('')
-    if (addPassword.length < 6) {
-      setAddError('Password must be at least 6 characters')
-      return
-    }
     setIsSubmitting(true)
     try {
-      const newStaff = await addStaff({ name: addName, email: addEmail, password: addPassword })
+      const newStaff = await addStaff({ name: addName, email: addEmail })
       setStaff((prev) => [
         ...prev,
         {
@@ -118,7 +114,6 @@ export default function StaffManagementPage() {
       ])
       setAddName('')
       setAddEmail('')
-      setAddPassword('')
       setIsDialogOpen(false)
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Failed to add staff')
@@ -262,13 +257,12 @@ export default function StaffManagementPage() {
           setAddError('')
           setAddName('')
           setAddEmail('')
-          setAddPassword('')
         }
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-foreground">Add Staff Member</DialogTitle>
-            <DialogDescription>Fill in the details to add a new team member. They will receive login credentials.</DialogDescription>
+            <DialogDescription>A temporary password will be sent to their email. They must log in and change it; 2FA is always on for staff.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddStaff} className="space-y-4">
             {addError && (
@@ -294,18 +288,6 @@ export default function StaffManagementPage() {
                 value={addEmail}
                 onChange={(e) => setAddEmail(e.target.value)}
                 className="mt-1 h-10"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-foreground">Password</label>
-              <Input
-                type="password"
-                placeholder="Min 6 characters"
-                value={addPassword}
-                onChange={(e) => setAddPassword(e.target.value)}
-                className="mt-1 h-10"
-                minLength={6}
                 required
               />
             </div>

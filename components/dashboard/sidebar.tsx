@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useAuth } from '@/lib/auth-context'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -33,6 +34,8 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
       { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
       { label: 'Staff', icon: Users, href: '/dashboard/staff' },
+      { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
+      { label: 'Wishlist (customer)', icon: Package, href: '/dashboard/wishlist' },
       { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
     ],
     staff: [
@@ -40,6 +43,8 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
       { label: 'Products', icon: Package, href: '/dashboard/products' },
       { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
+      { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
+      { label: 'Wishlist (customer)', icon: Package, href: '/dashboard/wishlist' },
     ],
     customer: [
       { label: 'Browse', icon: Store, href: '/dashboard' },
@@ -49,7 +54,20 @@ export function Sidebar({ onClose }: SidebarProps) {
     ],
     super_admin: [
       { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
+      { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
+      { label: 'Products', icon: Package, href: '/dashboard/products' },
+      { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
+      { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
+      { label: 'Staff', icon: Users, href: '/dashboard/staff' },
       { label: 'Add Owners', icon: Shield, href: '/dashboard/admin/owners' },
+      { label: 'Assistant Admins', icon: Users, href: '/dashboard/admin/assistant-admins' },
+      { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
+      { label: 'Wishlist', icon: Package, href: '/dashboard/wishlist' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' },
+      { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
+    ],
+    assistant_admin: [
+      { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
     ],
   }
@@ -61,9 +79,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       {/* Logo */}
       <div className="p-6 border-b border-primary/30">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary-foreground rounded-lg flex items-center justify-center">
-            <span className="text-primary font-bold text-sm">BH</span>
-          </div>
+          <Image src="/logo-favicon.png" alt="BiasharaHub" width={32} height={32} className="rounded-lg shrink-0" />
           <span className="font-bold text-lg">BiasharaHub</span>
         </Link>
       </div>

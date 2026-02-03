@@ -1,5 +1,6 @@
 'use client'
 
+import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -8,16 +9,20 @@ import { Clock, CheckCircle, AlertCircle, Package } from 'lucide-react'
 import Link from 'next/link'
 
 export function StaffDashboard() {
+  const { user } = useAuth()
   const pendingOrders = MOCK_ORDERS.filter((o) => o.status === 'pending')
   const processingOrders = MOCK_ORDERS.filter((o) => o.status === 'processing')
   const pendingShipments = MOCK_SHIPMENTS.filter((s) => s.status === 'pending' || s.status === 'in_transit')
+  const welcomeTitle = user?.businessName
+    ? `Welcome, ${user?.name ?? 'there'} – ${user.businessName} team`
+    : `Welcome, ${user?.name ?? 'there'}`
 
   return (
     <div className="p-8 space-y-8">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Order Management</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">{welcomeTitle}</h1>
           <p className="text-muted-foreground">Manage orders and shipments for today</p>
         </div>
         <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">

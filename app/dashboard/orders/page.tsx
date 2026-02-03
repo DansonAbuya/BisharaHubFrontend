@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,20 @@ import { Input } from '@/components/ui/input'
 import { MOCK_ORDERS } from '@/lib/mock-data'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Eye, Download, Filter } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+const MOCK_CUSTOMERS = [
+  { id: 'cust-1', name: 'Jane Mwangi' },
+  { id: 'cust-2', name: 'Ahmed Hassan' },
+  { id: 'cust-3', name: 'Sarah Okonkwo' },
+  { id: 'cust-4', name: 'Amina Patel' },
+]
 
 export default function OrdersPage() {
   const { user } = useAuth()
@@ -16,8 +30,18 @@ export default function OrdersPage() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [customerFilter, setCustomerFilter] = useState<string>('all')
 
-  const orders = user?.role === 'customer' ? MOCK_ORDERS.slice(0, 3) : MOCK_ORDERS
+  const isCustomerView = user?.role === 'customer'
+  const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
+
+  const orders = useMemo(() => {
+    let list = isCustomerView ? MOCK_ORDERS.slice(0, 3) : MOCK_ORDERS
+    if (canActOnBehalf && customerFilter !== 'all') {
+      list = list.filter((o) => o.customerId === customerFilter)
+    }
+    return list
+  }, [isCustomerView, canActOnBehalf, customerFilter])
 
   const filteredOrders = orders.filter((order) => {
     const matchSearch =
@@ -65,21 +89,40 @@ export default function OrdersPage() {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-            {user?.role === 'customer' ? 'My Orders' : 'Order Management'}
+            {isCustomerView ? 'My Orders' : 'Order Management'}
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground">
-            {user?.role === 'customer'
+            {isCustomerView
               ? 'Track your purchases and delivery status'
-              : 'View and manage all customer orders'}
+              : canActOnBehalf && customerFilter !== 'all'
+                ? `Orders for ${MOCK_CUSTOMERS.find((c) => c.id === customerFilter)?.name ?? 'customer'}`
+                : 'View and manage all customer orders'}
           </p>
         </div>
-        {user?.role !== 'customer' && (
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 w-full sm:w-auto text-sm">
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export Report</span>
-            <span className="sm:hidden">Export</span>
-          </Button>
-        )}
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          {canActOnBehalf && (
+            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+              <SelectTrigger className="w-full sm:w-[220px] h-9 text-sm">
+                <SelectValue placeholder="All customers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All customers</SelectItem>
+                {MOCK_CUSTOMERS.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {!isCustomerView && (
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 w-full sm:w-auto text-sm">
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export Report</span>
+              <span className="sm:hidden">Export</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}

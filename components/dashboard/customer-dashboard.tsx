@@ -7,8 +7,10 @@ import { MOCK_PRODUCTS, MOCK_ORDERS } from '@/lib/mock-data'
 import { ShoppingBag, Heart, MapPin, Truck } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
+import { useAuth } from '@/lib/auth-context'
 
 export function CustomerDashboard() {
+  const { user } = useAuth()
   const customerOrders = MOCK_ORDERS.slice(0, 3)
   const [wishlist] = useState<string[]>(['prod-1', 'prod-3'])
 
@@ -17,7 +19,9 @@ export function CustomerDashboard() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Welcome Back, Amina</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Welcome Back, {user?.name ?? 'there'}
+          </h1>
           <p className="text-muted-foreground">Browse our products and track your orders</p>
         </div>
         <Link href="/dashboard">

@@ -7,12 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { addOwner } from '@/lib/api'
-import { UserPlus } from 'lucide-react'
+import { addAssistantAdmin } from '@/lib/api'
+import { UserPlus, ShieldCheck } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import Link from 'next/link'
 
-export default function AdminOwnersPage() {
+export default function AssistantAdminsPage() {
   const { user } = useAuth()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [name, setName] = useState('')
@@ -40,20 +40,19 @@ export default function AdminOwnersPage() {
     )
   }
 
-  const handleAddOwner = async (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess('')
     setIsSubmitting(true)
     try {
-      await addOwner({ name, email, businessName })
-      setSuccess('Owner added. A temporary password has been sent to their email; they must log in and change it.')
+      await addAssistantAdmin({ name, email })
+      setSuccess('Assistant admin added. A temporary password has been sent to their email; they must log in and change it. 2FA is always on for assistant admins.')
       setName('')
       setEmail('')
-      setBusinessName('')
       setIsDialogOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add owner')
+      setError(err instanceof Error ? err.message : 'Failed to add assistant admin')
     } finally {
       setIsSubmitting(false)
     }
@@ -63,9 +62,9 @@ export default function AdminOwnersPage() {
     <div className="p-8 space-y-8">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Add Business Owners</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Add Assistant Admins</h1>
           <p className="text-muted-foreground">
-            Platform admins can onboard new business owners. Owners can then add their staff.
+            Platform admins can add assistant administrators. They receive a temporary password by email; 2FA is always on.
           </p>
         </div>
         <Button
@@ -75,12 +74,11 @@ export default function AdminOwnersPage() {
             setSuccess('')
             setName('')
             setEmail('')
-            setBusinessName('')
           }}
           className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
         >
           <UserPlus className="w-4 h-4" />
-          Add Owner
+          Add Assistant Admin
         </Button>
       </div>
 
@@ -92,14 +90,12 @@ export default function AdminOwnersPage() {
 
       <Card className="border-border">
         <CardHeader>
-          <CardTitle className="text-foreground">How it works</CardTitle>
+          <CardTitle className="text-foreground flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5" />
+            Assistant admins
+          </CardTitle>
           <CardDescription>
-            <ul className="list-disc list-inside space-y-1 mt-2">
-              <li>Platform admin adds owners (new business accounts)</li>
-              <li>Owners log in and manage their business (products, orders, etc.)</li>
-              <li>Owners add staff from the Staff Management page</li>
-              <li>Customers sign up themselves from the public sign-up page</li>
-            </ul>
+            Assistant administrators help manage the platform. They have 2FA always enabled and cannot disable it.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -107,12 +103,12 @@ export default function AdminOwnersPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Add Business Owner</DialogTitle>
+            <DialogTitle className="text-foreground">Add Assistant Admin</DialogTitle>
             <DialogDescription>
-              Enter owner name, email, and business name. A temporary password will be sent to their email; they should log in and change it, and can enable 2FA in Settings. They will be welcomed as the business when they log in.
+              Enter name and email. A temporary password will be sent to their email. 2FA is always on for this role.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleAddOwner} className="space-y-4">
+          <form onSubmit={handleAdd} className="space-y-4">
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
@@ -121,7 +117,7 @@ export default function AdminOwnersPage() {
             <div>
               <label className="text-sm font-medium text-foreground">Full Name</label>
               <Input
-                placeholder="Owner full name"
+                placeholder="Assistant admin full name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="mt-1 h-10"
@@ -132,30 +128,15 @@ export default function AdminOwnersPage() {
               <label className="text-sm font-medium text-foreground">Email</label>
               <Input
                 type="email"
-                placeholder="owner@business.com"
+                placeholder="admin@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="mt-1 h-10"
                 required
               />
             </div>
-            <div>
-              <label className="text-sm font-medium text-foreground">Business Name</label>
-              <Input
-                placeholder="e.g. Acme Traders"
-                value={businessName}
-                onChange={(e) => setBusinessName(e.target.value)}
-                className="mt-1 h-10"
-                required
-              />
-            </div>
             <div className="flex gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => setIsDialogOpen(false)}
-              >
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDialogOpen(false)}>
                 Cancel
               </Button>
               <Button
@@ -163,14 +144,7 @@ export default function AdminOwnersPage() {
                 disabled={isSubmitting}
                 className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
               >
-                {isSubmitting ? (
-                  <>
-                    <Spinner className="w-4 h-4 mr-2" />
-                    Adding...
-                  </>
-                ) : (
-                  'Add Owner'
-                )}
+                {isSubmitting ? <><Spinner className="w-4 h-4 mr-2" /> Adding...</> : 'Add Assistant Admin'}
               </Button>
             </div>
           </form>
