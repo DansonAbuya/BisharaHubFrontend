@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { MOCK_PRODUCTS } from '@/lib/mock-data'
-import { Heart, ShoppingCart, Share2, Trash2 } from 'lucide-react'
+import { listProducts, type ProductDto } from '@/lib/api'
+import { Heart, ShoppingCart, Share2, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 import {
   Select,
   SelectContent,
@@ -32,15 +33,26 @@ const MOCK_CUSTOMER_WISHLISTS: Record<string, string[]> = {
 
 export default function WishlistPage() {
   const { user } = useAuth()
+  const [products, setProducts] = useState<ProductDto[]>([])
+  const [loading, setLoading] = useState(true)
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(canActOnBehalf ? 'cust-1' : '')
-  const [ownWishlist, setOwnWishlist] = useState<string[]>(['prod-1', 'prod-3', 'prod-5'])
+  const [ownWishlist, setOwnWishlist] = useState<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    listProducts()
+      .then((data) => { if (!cancelled) setProducts(data) })
+      .catch(() => { if (!cancelled) setProducts([]) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
 
   const wishlist = isCustomerView || !canActOnBehalf
     ? ownWishlist
     : (MOCK_CUSTOMER_WISHLISTS[selectedCustomerId] ?? [])
-  const wishlistItems = MOCK_PRODUCTS.filter((p) => wishlist.includes(p.id))
+  const wishlistItems = products.filter((p) => wishlist.includes(p.id))
 
   const removeFromWishlist = (productId: string) => {
     if (isCustomerView || !canActOnBehalf) {
@@ -124,13 +136,20 @@ export default function WishlistPage() {
       )}
 
       {/* Wishlist Items */}
-      {wishlist.length > 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : wishlist.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {wishlistItems.map((product) => (
             <Card key={product.id} className="border-border overflow-hidden hover:shadow-lg transition">
-              {/* Product Image */}
-              <div className="aspect-square bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center relative">
-                <ShoppingCart className="w-16 h-16 text-primary/30" />
+              <div className="aspect-square bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center relative overflow-hidden">
+                {product.image ? (
+                  <Image src={product.image} alt="" fill className="object-cover" unoptimized />
+                ) : (
+                  <ShoppingCart className="w-16 h-16 text-primary/30" />
+                )}
                 <Button
                   size="icon"
                   variant="ghost"
@@ -140,43 +159,30 @@ export default function WishlistPage() {
                   <Heart className="w-5 h-5 fill-current" />
                 </Button>
               </div>
-
-              {/* Product Info */}
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <Badge className="bg-primary/30 text-primary text-xs">
-                    {product.category}
+                    {product.category || 'Uncategorized'}
                   </Badge>
                   <Badge className="bg-secondary/30 text-foreground">
-                    {product.quantity} left
+                    {(product.quantity ?? 0)} left
                   </Badge>
                 </div>
                 <CardTitle className="text-lg text-foreground line-clamp-2">{product.name}</CardTitle>
-                <CardDescription className="line-clamp-2">{product.description}</CardDescription>
+                <CardDescription className="line-clamp-2">{product.description || '—'}</CardDescription>
               </CardHeader>
-
               <CardContent className="space-y-4">
-                {/* Price */}
                 <div className="flex items-center justify-between">
                   <p className="text-2xl font-bold text-primary">
                     KES {(product.price / 1000).toFixed(0)}K
                   </p>
                 </div>
-
-                {/* Actions */}
                 <div className="flex gap-2">
-                  <Button
-                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
-                    size="sm"
-                  >
+                  <Button className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground" size="sm">
                     <ShoppingCart className="w-4 h-4 mr-1" />
                     Add to Cart
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 bg-transparent"
-                  >
+                  <Button variant="outline" size="sm" className="flex-1 bg-transparent">
                     <Share2 className="w-4 h-4" />
                   </Button>
                 </div>

@@ -38,6 +38,7 @@ export default function StaffManagementPage() {
   const [addName, setAddName] = useState('')
   const [addEmail, setAddEmail] = useState('')
   const [addError, setAddError] = useState('')
+  const [addSuccess, setAddSuccess] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loadingStaff, setLoadingStaff] = useState(USE_API)
 
@@ -98,6 +99,7 @@ export default function StaffManagementPage() {
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault()
     setAddError('')
+    setAddSuccess('')
     setIsSubmitting(true)
     try {
       const newStaff = await addStaff({ name: addName, email: addEmail })
@@ -115,6 +117,9 @@ export default function StaffManagementPage() {
       setAddName('')
       setAddEmail('')
       setIsDialogOpen(false)
+      setAddSuccess(
+        'Staff member added. A temporary password has been sent to their email; they can log in and change it. 2FA is always on for staff.',
+      )
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Failed to add staff')
     } finally {
@@ -173,6 +178,12 @@ export default function StaffManagementPage() {
           </CardContent>
         </Card>
       </div>
+
+      {addSuccess && (
+        <Alert className="border-primary/50 bg-primary/10">
+          <AlertDescription>{addSuccess}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Search */}
       <Card className="border-border">
@@ -257,6 +268,8 @@ export default function StaffManagementPage() {
           setAddError('')
           setAddName('')
           setAddEmail('')
+        } else {
+          setAddError('')
         }
       }}>
         <DialogContent className="sm:max-w-md">

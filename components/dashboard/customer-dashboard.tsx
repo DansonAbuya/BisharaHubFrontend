@@ -3,16 +3,25 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { MOCK_PRODUCTS, MOCK_ORDERS } from '@/lib/mock-data'
+import { listProducts, type ProductDto } from '@/lib/api'
+import { MOCK_ORDERS } from '@/lib/mock-data'
 import { ShoppingBag, Heart, MapPin, Truck } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
+import Image from 'next/image'
 
 export function CustomerDashboard() {
   const { user } = useAuth()
   const customerOrders = MOCK_ORDERS.slice(0, 3)
-  const [wishlist] = useState<string[]>(['prod-1', 'prod-3'])
+  const [wishlist] = useState<string[]>([])
+  const [featuredProducts, setFeaturedProducts] = useState<ProductDto[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    listProducts().then((data) => { if (!cancelled) setFeaturedProducts(data.slice(0, 3)) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <div className="p-8 space-y-8">
@@ -164,16 +173,20 @@ export function CustomerDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {MOCK_PRODUCTS.slice(0, 3).map((product) => (
+            {featuredProducts.map((product) => (
               <div
                 key={product.id}
                 className="border border-border rounded-lg p-4 hover:shadow-md transition"
               >
-                <div className="aspect-square bg-gradient-to-br from-primary/20 to-accent/20 rounded-lg mb-3 flex items-center justify-center">
-                  <ShoppingBag className="w-12 h-12 text-primary/50" />
+                <div className="aspect-square bg-gradient-to-br from-primary/20 to-accent/20 rounded-lg mb-3 flex items-center justify-center overflow-hidden relative">
+                  {product.image ? (
+                    <Image src={product.image} alt="" fill className="object-cover" unoptimized />
+                  ) : (
+                    <ShoppingBag className="w-12 h-12 text-primary/50" />
+                  )}
                 </div>
                 <h3 className="font-semibold text-foreground mb-1">{product.name}</h3>
-                <p className="text-sm text-muted-foreground mb-3">{product.description}</p>
+                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{product.description || '—'}</p>
                 <div className="flex items-center justify-between">
                   <span className="text-lg font-bold text-primary">
                     KES {(product.price / 1000).toFixed(0)}K

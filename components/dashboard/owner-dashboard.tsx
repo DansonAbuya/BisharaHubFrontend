@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { MOCK_ANALYTICS, MOCK_ORDERS, MOCK_PRODUCTS } from '@/lib/mock-data'
+import { listProducts, type ProductDto } from '@/lib/api'
+import { MOCK_ANALYTICS, MOCK_ORDERS } from '@/lib/mock-data'
 import {
   BarChart,
   Bar,
@@ -24,9 +25,15 @@ import Link from 'next/link'
 export function OwnerDashboard() {
   const { user } = useAuth()
   const [timeRange] = useState('month')
+  const [products, setProducts] = useState<ProductDto[]>([])
 
-  // Calculate stats
-  const lowStockProducts = MOCK_PRODUCTS.filter((p) => p.quantity <= 30)
+  useEffect(() => {
+    let cancelled = false
+    listProducts().then((data) => { if (!cancelled) setProducts(data) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  const lowStockProducts = products.filter((p) => (p.quantity ?? 0) <= 30)
   const welcomeTitle = user?.businessName
     ? `Welcome back, ${user?.name ?? 'there'} – ${user.businessName}`
     : `Welcome back, ${user?.name ?? 'there'}`
@@ -149,7 +156,7 @@ export function OwnerDashboard() {
                     <div>
                       <p className="font-medium text-foreground text-sm">{product.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {product.quantity} units left
+                        {(product.quantity ?? 0)} units left
                       </p>
                     </div>
                     <Badge className="bg-accent text-accent-foreground">Reorder</Badge>

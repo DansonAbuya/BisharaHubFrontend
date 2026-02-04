@@ -17,6 +17,7 @@ export default function AdminOwnersPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [businessName, setBusinessName] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
