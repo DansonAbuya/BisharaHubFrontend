@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -19,11 +20,19 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { MOCK_ANALYTICS, MOCK_ORDERS, MOCK_PRODUCTS } from '@/lib/mock-data'
+import { listProducts, type ProductDto } from '@/lib/api'
+import { MOCK_ANALYTICS, MOCK_ORDERS } from '@/lib/mock-data'
 import { Download, TrendingUp, Calendar } from 'lucide-react'
 
 export default function AnalyticsPage() {
   const { user } = useAuth()
+  const [products, setProducts] = useState<ProductDto[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    listProducts().then((data) => { if (!cancelled) setProducts(data) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const canAccessAnalytics = user?.role === 'owner' || user?.role === 'super_admin'
   if (!canAccessAnalytics) {
@@ -46,19 +55,26 @@ export default function AnalyticsPage() {
     { name: 'Delivered', value: MOCK_ORDERS.filter((o) => o.status === 'delivered').length },
   ]
 
-  // Category breakdown
-  const categoryRevenue = MOCK_PRODUCTS.reduce(
+  // Category breakdown from API products
+  const categoryRevenue = products.reduce(
     (acc, product) => {
-      const existing = acc.find((item) => item.name === product.category)
+      const cat = product.category || 'Uncategorized'
+      const existing = acc.find((item) => item.name === cat)
+      const value = product.price * (product.quantity ?? 0)
       if (existing) {
-        existing.value += product.price * product.quantity
+        existing.value += value
       } else {
-        acc.push({ name: product.category, value: product.price * product.quantity })
+        acc.push({ name: cat, value })
       }
       return acc
     },
     [] as Array<{ name: string; value: number }>,
   )
+
+  // Top products by value (price * quantity) from API
+  const topProductsByValue = [...products]
+    .sort((a, b) => (b.price * (b.quantity ?? 0)) - (a.price * (a.quantity ?? 0)))
+    .slice(0, 5)
 
   const COLORS = [
     'var(--primary)',
@@ -248,20 +264,20 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {MOCK_ANALYTICS.topProducts.map((product, idx) => (
+              {topProductsByValue.map((product, idx) => (
                 <div key={product.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3 flex-1">
                     <Badge className="bg-primary/30 text-primary font-bold">#{idx + 1}</Badge>
                     <div className="flex-1">
                       <p className="font-medium text-foreground">{product.name}</p>
-                      <p className="text-xs text-muted-foreground">{product.category}</p>
+                      <p className="text-xs text-muted-foreground">{product.category || 'Uncategorized'}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-foreground">
-                      KES {((product.price * product.quantity) / 1000).toFixed(0)}K
+                      KES {((product.price * (product.quantity ?? 0)) / 1000).toFixed(0)}K
                     </p>
-                    <p className="text-xs text-muted-foreground">{product.quantity} sold</p>
+                    <p className="text-xs text-muted-foreground">{(product.quantity ?? 0)} in stock</p>
                   </div>
                 </div>
               ))}

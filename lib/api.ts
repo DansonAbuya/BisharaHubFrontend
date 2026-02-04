@@ -219,3 +219,152 @@ export async function listStaff(): Promise<AuthUser[]> {
   if (!res.ok) throw new Error('Failed to fetch staff')
   return res.json()
 }
+
+// --- Products & Categories (backend: business-scoped for owner/staff, R2 images) ---
+
+export interface ProductCategoryDto {
+  id: string
+  name: string
+  displayOrder: number
+}
+
+export interface BusinessDto {
+  id: string
+  name: string
+  ownerName: string
+}
+
+/** List businesses (owners) for customer filter dropdown. */
+export async function listBusinesses(): Promise<BusinessDto[]> {
+  const res = await fetch(`${API_BASE}/products/businesses`, {
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) throw new Error('Failed to fetch businesses')
+  return res.json()
+}
+
+export interface ProductDto {
+  id: string
+  name: string
+  category: string | null
+  price: number
+  quantity: number
+  description: string | null
+  image: string | null
+  images: string[] | null
+  businessId: string | null
+}
+
+/** List product categories for dropdown. Public endpoint; auth sent when available. */
+export async function listProductCategories(): Promise<ProductCategoryDto[]> {
+  const res = await fetch(`${API_BASE}/products/categories`, {
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) throw new Error('Failed to fetch categories')
+  return res.json()
+}
+
+/** List products. Customers: optional category, businessId, businessName, ownerId. Owner/staff: only their business. */
+export async function listProducts(params?: {
+  category?: string
+  businessId?: string
+  businessName?: string
+  ownerId?: string
+}): Promise<ProductDto[]> {
+  const search = new URLSearchParams()
+  if (params?.category) search.set('category', params.category)
+  if (params?.businessId) search.set('businessId', params.businessId)
+  if (params?.businessName) search.set('businessName', params.businessName)
+  if (params?.ownerId) search.set('ownerId', params.ownerId)
+  const qs = search.toString()
+  const url = qs ? `${API_BASE}/products?${qs}` : `${API_BASE}/products`
+  const res = await fetch(url, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch products')
+  return res.json()
+}
+
+/** Get single product (owner/staff: only their business). */
+export async function getProduct(id: string): Promise<ProductDto> {
+  const res = await fetch(`${API_BASE}/products/${id}`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch product')
+  return res.json()
+}
+
+/** Create product (owner/staff only; scoped to their business). */
+export async function createProduct(data: {
+  name: string
+  category?: string | null
+  price: number
+  quantity?: number
+  description?: string | null
+  image?: string | null
+  images?: string[] | null
+}): Promise<ProductDto> {
+  const res = await fetch(`${API_BASE}/products`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to create product')
+  }
+  return res.json()
+}
+
+/** Update product (owner/staff only; must belong to their business). */
+export async function updateProduct(
+  id: string,
+  data: {
+    name?: string
+    category?: string | null
+    price?: number
+    quantity?: number
+    description?: string | null
+    image?: string | null
+    images?: string[] | null
+  }
+): Promise<ProductDto> {
+  const res = await fetch(`${API_BASE}/products/${id}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to update product')
+  }
+  return res.json()
+}
+
+/** Delete product (owner/staff only; must belong to their business). */
+export async function deleteProduct(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/products/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to delete product')
+  }
+}
+
+/** Upload product image to R2 (owner/staff only). Returns { url }. */
+export async function uploadProductImage(file: File): Promise<{ url: string }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const token = typeof window !== 'undefined' ? sessionStorage.getItem('biashara_token') : null
+  const headers: Record<string, string> = { 'X-Tenant-ID': DEFAULT_TENANT_ID }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(`${API_BASE}/products/upload-image`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Image upload failed')
+  }
+  return res.json()
+}
