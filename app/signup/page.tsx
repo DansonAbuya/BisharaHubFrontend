@@ -79,7 +79,7 @@ export default function SignUpPage() {
             </CardTitle>
             <CardDescription className="text-center">
               {show2FAStep
-                ? `We sent a 6-digit code to ${pendingTwoFactor?.email}. Enter it to complete sign up.`
+                ? `We sent a 6-digit code in your BiasharaHub welcome email to ${pendingTwoFactor?.email}. Enter it to verify your account. You only need to do this once.`
                 : 'Sign up as a customer to browse and place orders'}
             </CardDescription>
           </CardHeader>

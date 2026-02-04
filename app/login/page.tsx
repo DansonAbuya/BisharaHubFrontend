@@ -67,7 +67,9 @@ export default function LoginPage() {
             </CardTitle>
             <CardDescription className="text-center">
               {show2FAStep
-                ? `We sent a 6-digit code to ${pendingTwoFactor?.email}. Enter it below.`
+                ? pendingTwoFactor?.user.role === 'customer'
+                  ? `Enter the 6-digit code we sent in your BiasharaHub welcome email to ${pendingTwoFactor.email}. You only need to do this once.`
+                  : `We sent a 6-digit code to ${pendingTwoFactor?.email}. Enter it below.`
                 : 'Sign in to your account to continue'}
             </CardDescription>
           </CardHeader>
