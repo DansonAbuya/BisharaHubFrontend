@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -21,17 +22,21 @@ import { TrendingUp, Package, ShoppingCart, DollarSign } from 'lucide-react'
 import Link from 'next/link'
 
 export function OwnerDashboard() {
+  const { user } = useAuth()
   const [timeRange] = useState('month')
 
   // Calculate stats
   const lowStockProducts = MOCK_PRODUCTS.filter((p) => p.quantity <= 30)
+  const welcomeTitle = user?.businessName
+    ? `Welcome back, ${user?.name ?? 'there'} – ${user.businessName}`
+    : `Welcome back, ${user?.name ?? 'there'}`
 
   return (
     <div className="p-8 space-y-8">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Business Overview</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">{welcomeTitle}</h1>
           <p className="text-muted-foreground">Track your business performance and key metrics</p>
         </div>
         <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">

@@ -25,12 +25,13 @@ import { Download, TrendingUp, Calendar } from 'lucide-react'
 export default function AnalyticsPage() {
   const { user } = useAuth()
 
-  if (user?.role !== 'owner') {
+  const canAccessAnalytics = user?.role === 'owner' || user?.role === 'super_admin'
+  if (!canAccessAnalytics) {
     return (
       <div className="p-8">
         <Card className="border-border">
           <CardContent className="py-16 text-center">
-            <p className="text-foreground font-medium">This page is only available to business owners.</p>
+            <p className="text-foreground font-medium">This page is only available to business owners and platform admins.</p>
           </CardContent>
         </Card>
       </div>

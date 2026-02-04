@@ -1,10 +1,10 @@
 {
-  "name": "my-v0-project",
+  "name": "biasharahub",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "next dev --experimental-https",
     "lint": "eslint .",
     "start": "next start"
   },

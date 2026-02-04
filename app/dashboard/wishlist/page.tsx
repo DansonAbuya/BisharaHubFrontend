@@ -7,15 +7,48 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MOCK_PRODUCTS } from '@/lib/mock-data'
 import { Heart, ShoppingCart, Share2, Trash2 } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+const MOCK_CUSTOMERS = [
+  { id: 'cust-1', name: 'Jane Mwangi' },
+  { id: 'cust-2', name: 'Ahmed Hassan' },
+  { id: 'cust-3', name: 'Sarah Okonkwo' },
+  { id: 'cust-4', name: 'Amina Patel' },
+]
+
+// Mock wishlists per customer (for owner/staff "on behalf" view)
+const MOCK_CUSTOMER_WISHLISTS: Record<string, string[]> = {
+  'cust-1': ['prod-1', 'prod-3'],
+  'cust-2': ['prod-2', 'prod-4'],
+  'cust-3': ['prod-1', 'prod-5'],
+  'cust-4': ['prod-3', 'prod-4', 'prod-5'],
+}
 
 export default function WishlistPage() {
   const { user } = useAuth()
-  const [wishlist, setWishlist] = useState<string[]>(['prod-1', 'prod-3', 'prod-5'])
+  const isCustomerView = user?.role === 'customer'
+  const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(canActOnBehalf ? 'cust-1' : '')
+  const [ownWishlist, setOwnWishlist] = useState<string[]>(['prod-1', 'prod-3', 'prod-5'])
 
+  const wishlist = isCustomerView || !canActOnBehalf
+    ? ownWishlist
+    : (MOCK_CUSTOMER_WISHLISTS[selectedCustomerId] ?? [])
   const wishlistItems = MOCK_PRODUCTS.filter((p) => wishlist.includes(p.id))
 
   const removeFromWishlist = (productId: string) => {
-    setWishlist((prev) => prev.filter((id) => id !== productId))
+    if (isCustomerView || !canActOnBehalf) {
+      setOwnWishlist((prev) => prev.filter((id) => id !== productId))
+    } else {
+      // On-behalf view: mock only; in real app would call API
+      setSelectedCustomerId((id) => id)
+    }
   }
 
   const totalValue = wishlistItems.reduce((sum, p) => sum + p.price, 0)
@@ -23,12 +56,30 @@ export default function WishlistPage() {
   return (
     <div className="p-8 space-y-8">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">My Wishlist</h1>
-          <p className="text-muted-foreground">Save your favorite items for later</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            {isCustomerView ? 'My Wishlist' : canActOnBehalf ? 'Wishlist (on behalf of customer)' : 'My Wishlist'}
+          </h1>
+          <p className="text-muted-foreground">
+            {isCustomerView ? 'Save your favorite items for later' : 'View or manage a customer\'s saved items'}
+          </p>
         </div>
-        {wishlist.length > 0 && (
+        {canActOnBehalf && (
+          <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+            <SelectTrigger className="w-full sm:w-[220px] h-10 text-sm">
+              <SelectValue placeholder="Select customer" />
+            </SelectTrigger>
+            <SelectContent>
+              {MOCK_CUSTOMERS.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {(isCustomerView || !canActOnBehalf) && wishlist.length > 0 && (
           <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
             <ShoppingCart className="w-4 h-4" />
             Add All to Cart
