@@ -1,5 +1,9 @@
 'use client'
 
+/**
+ * Sellers center: products page. Owner/staff must only see and manage products that belong to their business.
+ * Backend is expected to scope product list by business for owner/staff; customers use businessId to see a specific shop's products.
+ */
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -186,7 +190,7 @@ export default function ProductsPage() {
   const canManage = user?.role === 'owner' || user?.role === 'staff'
 
   return (
-    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">

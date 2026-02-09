@@ -64,7 +64,7 @@ export default function ShipmentsPage() {
   const deliveredShipments = MOCK_SHIPMENTS.filter((s) => s.status === 'delivered').length
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>

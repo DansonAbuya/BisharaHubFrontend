@@ -2,14 +2,19 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 /**
- * Redirect HTTP to HTTPS so the app always uses a secure connection.
- * In production (or behind a proxy), when the request is received over HTTP we redirect to HTTPS.
- * When using `next dev --experimental-https`, the dev server is HTTPS so this mainly helps in production.
+ * Redirect HTTP to HTTPS in production so the app uses a secure connection.
+ * Skipped on localhost so dev can run over HTTP (no SSL) and avoid ERR_SSL_PROTOCOL_ERROR.
  */
 export function middleware(request: NextRequest) {
-  const proto = request.headers.get('x-forwarded-proto')
   const host = request.headers.get('host') || request.nextUrl.host
-  // If the request came over HTTP (e.g. proxy sent x-forwarded-proto: http), redirect to HTTPS
+  const isLocalhost =
+    host === 'localhost' ||
+    host.startsWith('localhost:') ||
+    host === '127.0.0.1' ||
+    host.startsWith('127.0.0.1:')
+  if (isLocalhost) return NextResponse.next()
+
+  const proto = request.headers.get('x-forwarded-proto')
   if (proto === 'http') {
     const url = request.nextUrl.clone()
     url.protocol = 'https:'

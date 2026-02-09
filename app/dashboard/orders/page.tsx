@@ -1,14 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { MOCK_ORDERS } from '@/lib/mock-data'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Eye, Download, Filter } from 'lucide-react'
+import { Eye, Download, Filter, Loader2 } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -16,40 +15,69 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-
-const MOCK_CUSTOMERS = [
-  { id: 'cust-1', name: 'Jane Mwangi' },
-  { id: 'cust-2', name: 'Ahmed Hassan' },
-  { id: 'cust-3', name: 'Sarah Okonkwo' },
-  { id: 'cust-4', name: 'Amina Patel' },
-]
+import { listOrders, initiatePayment, type OrderDto } from '@/lib/api'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Smartphone } from 'lucide-react'
 
 export default function OrdersPage() {
   const { user } = useAuth()
+  const [orders, setOrders] = useState<OrderDto[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
-  const [selectedOrder, setSelectedOrder] = useState<any>(null)
+  const [selectedOrder, setSelectedOrder] = useState<OrderDto | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [customerFilter, setCustomerFilter] = useState<string>('all')
+  const [payOrder, setPayOrder] = useState<OrderDto | null>(null)
+  const [mpesaPhone, setMpesaPhone] = useState('')
+  const [paymentInitiated, setPaymentInitiated] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
+  const [initiatingPayment, setInitiatingPayment] = useState(false)
 
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
 
-  const orders = useMemo(() => {
-    let list = isCustomerView ? MOCK_ORDERS.slice(0, 3) : MOCK_ORDERS
-    if (canActOnBehalf && customerFilter !== 'all') {
-      list = list.filter((o) => o.customerId === customerFilter)
-    }
-    return list
-  }, [isCustomerView, canActOnBehalf, customerFilter])
+  useEffect(() => {
+    if (!user) return
+    setLoading(true)
+    setError(null)
+    listOrders()
+      .then(setOrders)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load orders'))
+      .finally(() => setLoading(false))
+  }, [user])
 
-  const filteredOrders = orders.filter((order) => {
+  const customerList = useMemo(() => {
+    const seen = new Set<string>()
+    return orders
+      .filter((o) => o.customerId && !seen.has(o.customerId) && (seen.add(o.customerId), true))
+      .map((o) => ({ id: o.customerId, name: o.customerName || o.customerEmail || o.customerId }))
+  }, [orders])
+
+  const ordersFilteredByCustomer = useMemo(() => {
+    if (!canActOnBehalf || customerFilter === 'all') return orders
+    return orders.filter((o) => o.customerId === customerFilter)
+  }, [orders, canActOnBehalf, customerFilter])
+
+  const filteredOrders = ordersFilteredByCustomer.filter((order) => {
+    const orderIdStr = (order.orderId || order.id || '').toLowerCase()
+    const customerStr = (order.customerName || order.customerEmail || '').toLowerCase()
     const matchSearch =
-      order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+      !searchTerm.trim() ||
+      orderIdStr.includes(searchTerm.toLowerCase()) ||
+      customerStr.includes(searchTerm.toLowerCase())
     const matchStatus = filterStatus === 'all' || order.status === filterStatus
     return matchSearch && matchStatus
   })
+
+  const formatDate = (createdAt: string) => {
+    try {
+      return new Date(createdAt).toLocaleDateString()
+    } catch {
+      return createdAt
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -83,8 +111,63 @@ export default function OrdersPage() {
     }
   }
 
+  const canPayOrder = (order: OrderDto) =>
+    (order.paymentStatus ?? 'pending') === 'pending' &&
+    order.id &&
+    order.paymentId &&
+    (isCustomerView ? order.customerId === user?.id : false)
+
+  const normalizeMpesaPhone = (raw: string): string => {
+    const digits = raw.replace(/\D/g, '')
+    if (digits.startsWith('254')) return digits
+    if (digits.startsWith('0')) return '254' + digits.slice(1)
+    if (digits.length >= 9) return '254' + digits.slice(-9)
+    return digits
+  }
+
+  const handleOpenPay = (order: OrderDto) => {
+    setPayOrder(order)
+    setMpesaPhone('')
+    setPaymentInitiated(false)
+    setPaymentError('')
+  }
+
+  const handleInitiatePayment = async () => {
+    if (!payOrder?.id || !mpesaPhone.trim()) {
+      setPaymentError('Enter your M-Pesa phone number (e.g. 07XXXXXXXX or 254XXXXXXXXX)')
+      return
+    }
+    setInitiatingPayment(true)
+    setPaymentError('')
+    try {
+      await initiatePayment(payOrder.id, { phoneNumber: normalizeMpesaPhone(mpesaPhone.trim()) })
+      setPaymentInitiated(true)
+    } catch (e) {
+      setPaymentError(e instanceof Error ? e.message : 'Failed to send M-Pesa prompt')
+    } finally {
+      setInitiatingPayment(false)
+    }
+  }
+
+  const handleRefreshOrders = () => {
+    listOrders().then(setOrders).catch(() => {})
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px]">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
   return (
-    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
+    <div className="space-y-4 sm:space-y-6">
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
@@ -95,7 +178,7 @@ export default function OrdersPage() {
             {isCustomerView
               ? 'Track your purchases and delivery status'
               : canActOnBehalf && customerFilter !== 'all'
-                ? `Orders for ${MOCK_CUSTOMERS.find((c) => c.id === customerFilter)?.name ?? 'customer'}`
+                ? `Orders for ${customerList.find((c) => c.id === customerFilter)?.name ?? 'customer'}`
                 : 'View and manage all customer orders'}
           </p>
         </div>
@@ -107,7 +190,7 @@ export default function OrdersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All customers</SelectItem>
-                {MOCK_CUSTOMERS.map((c) => (
+                {customerList.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
                   </SelectItem>
@@ -132,7 +215,7 @@ export default function OrdersPage() {
             <CardTitle className="text-xs sm:text-sm font-medium text-foreground">Total Orders</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl sm:text-3xl font-bold text-foreground">{orders.length}</div>
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">{ordersFilteredByCustomer.length}</div>
           </CardContent>
         </Card>
 
@@ -142,7 +225,7 @@ export default function OrdersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl sm:text-3xl font-bold text-accent">
-              {orders.filter((o) => o.status === 'pending').length}
+              {ordersFilteredByCustomer.filter((o) => o.status === 'pending').length}
             </div>
           </CardContent>
         </Card>
@@ -153,7 +236,7 @@ export default function OrdersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl sm:text-3xl font-bold text-secondary-foreground">
-              {orders.filter((o) => o.status === 'shipped' || o.status === 'processing').length}
+              {ordersFilteredByCustomer.filter((o) => o.status === 'shipped' || o.status === 'processing').length}
             </div>
           </CardContent>
         </Card>
@@ -164,7 +247,7 @@ export default function OrdersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-primary">
-              {orders.filter((o) => o.status === 'delivered').length}
+              {ordersFilteredByCustomer.filter((o) => o.status === 'delivered').length}
             </div>
           </CardContent>
         </Card>
@@ -216,18 +299,20 @@ export default function OrdersPage() {
               >
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground text-sm sm:text-base truncate">{order.orderId}</p>
+                    <p className="font-semibold text-foreground text-sm sm:text-base truncate">
+                      {order.orderId || order.id}
+                    </p>
                     <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1">
                       {order.customerName}
                       {order.customerEmail && ` • ${order.customerEmail}`}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {order.createdAt.toLocaleDateString()}
+                      {formatDate(order.createdAt)}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-lg sm:text-xl font-bold text-primary">
-                      KES {(order.total / 1000).toFixed(0)}K
+                      KES {(Number(order.total) / 1000).toFixed(0)}K
                     </p>
                   </div>
                 </div>
@@ -237,8 +322,8 @@ export default function OrdersPage() {
                   <Badge className={getStatusColor(order.status)}>
                     {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                   </Badge>
-                  <Badge className={getPaymentColor(order.paymentStatus)}>
-                    Payment: {order.paymentStatus}
+                  <Badge className={getPaymentColor(order.paymentStatus ?? 'pending')}>
+                    Payment: {order.paymentStatus ?? 'pending'}
                   </Badge>
                   {order.paymentMethod && (
                     <Badge className="bg-secondary/30 text-foreground">
@@ -251,9 +336,9 @@ export default function OrdersPage() {
                 <div className="mb-3">
                   <p className="text-sm text-muted-foreground mb-2">Items:</p>
                   <div className="space-y-1">
-                    {order.items.map((item, idx) => (
+                    {order.items?.map((item, idx) => (
                       <p key={idx} className="text-sm text-foreground">
-                        {item.productName} x {item.quantity} = KES {(item.subtotal / 1000).toFixed(0)}K
+                        {item.productName} x {item.quantity} = KES {(Number(item.subtotal) / 1000).toFixed(0)}K
                       </p>
                     ))}
                   </div>
@@ -268,18 +353,30 @@ export default function OrdersPage() {
                 )}
 
                 {/* Actions */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-primary hover:bg-primary/10"
-                  onClick={() => {
-                    setSelectedOrder(order)
-                    setIsDetailOpen(true)
-                  }}
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  View Details
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-primary hover:bg-primary/10"
+                    onClick={() => {
+                      setSelectedOrder(order)
+                      setIsDetailOpen(true)
+                    }}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    View Details
+                  </Button>
+                  {canPayOrder(order) && (
+                    <Button
+                      size="sm"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                      onClick={() => handleOpenPay(order)}
+                    >
+                      <Smartphone className="w-4 h-4 mr-2" />
+                      Pay
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -297,7 +394,7 @@ export default function OrdersPage() {
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-foreground">{selectedOrder?.orderId}</DialogTitle>
+            <DialogTitle className="text-foreground">{selectedOrder?.orderId || selectedOrder?.id}</DialogTitle>
             <DialogDescription>Complete order details and timeline</DialogDescription>
           </DialogHeader>
 
@@ -307,12 +404,12 @@ export default function OrdersPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Customer</p>
-                  <p className="font-semibold text-foreground">{selectedOrder.customerName}</p>
+                  <p className="font-semibold text-foreground">{selectedOrder.customerName || selectedOrder.customerEmail || '—'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Order Date</p>
                   <p className="font-semibold text-foreground">
-                    {selectedOrder.createdAt.toLocaleDateString()}
+                    {formatDate(selectedOrder.createdAt)}
                   </p>
                 </div>
                 <div>
@@ -323,8 +420,8 @@ export default function OrdersPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Payment Status</p>
-                  <Badge className={getPaymentColor(selectedOrder.paymentStatus)}>
-                    {selectedOrder.paymentStatus}
+                  <Badge className={getPaymentColor(selectedOrder.paymentStatus ?? 'pending')}>
+                    {selectedOrder.paymentStatus ?? 'pending'}
                   </Badge>
                 </div>
               </div>
@@ -333,11 +430,11 @@ export default function OrdersPage() {
               <div>
                 <p className="font-semibold text-foreground mb-3">Items Ordered</p>
                 <div className="space-y-2">
-                  {selectedOrder.items.map((item: any, idx: number) => (
+                  {(selectedOrder.items ?? []).map((item, idx) => (
                     <div key={idx} className="flex justify-between p-2 bg-secondary/50 rounded">
                       <span className="text-foreground">{item.productName}</span>
                       <span className="text-foreground font-medium">
-                        x{item.quantity} = KES {(item.subtotal / 1000).toFixed(0)}K
+                        x{item.quantity} = KES {(Number(item.subtotal) / 1000).toFixed(0)}K
                       </span>
                     </div>
                   ))}
@@ -349,21 +446,110 @@ export default function OrdersPage() {
                 <div className="flex justify-between items-center">
                   <p className="text-foreground font-semibold">Total Amount</p>
                   <p className="text-2xl font-bold text-primary">
-                    KES {(selectedOrder.total / 1000).toFixed(0)}K
+                    KES {(Number(selectedOrder.total) / 1000).toFixed(0)}K
                   </p>
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-4">
-                <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setIsDetailOpen(false)}>
+              <div className="flex flex-wrap gap-2 pt-4">
+                <Button variant="outline" className="bg-transparent" onClick={() => setIsDetailOpen(false)}>
                   Close
                 </Button>
-                <Button className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground">
+                {canPayOrder(selectedOrder) && (
+                  <Button
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                    onClick={() => {
+                      setIsDetailOpen(false)
+                      handleOpenPay(selectedOrder)
+                    }}
+                  >
+                    <Smartphone className="w-4 h-4 mr-2" />
+                    Pay with M-Pesa
+                  </Button>
+                )}
+                <Button variant="outline" className="bg-transparent">
                   Download Invoice
                 </Button>
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pay with M-Pesa dialog */}
+      <Dialog open={!!payOrder} onOpenChange={(open) => { if (!open) setPayOrder(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Pay with M-Pesa</DialogTitle>
+            <DialogDescription>
+              You will receive an M-Pesa STK push on your phone to complete payment.
+            </DialogDescription>
+          </DialogHeader>
+          {payOrder && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-sm text-muted-foreground">Order {payOrder.orderId || payOrder.id}</p>
+                <p className="text-xl font-bold text-primary mt-1">
+                  KES {(Number(payOrder.total) / 1000).toFixed(0)}K
+                </p>
+              </div>
+              {!paymentInitiated ? (
+                <div>
+                  <label className="text-sm font-medium text-foreground">M-Pesa phone number</label>
+                  <Input
+                    placeholder="07XXXXXXXX or 254XXXXXXXXX"
+                    value={mpesaPhone}
+                    onChange={(e) => setMpesaPhone(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                ) : (
+                  <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                    <Smartphone className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Complete payment on your phone</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Enter your M-Pesa PIN. Payment status will update automatically when M-Pesa confirms. You can close this and refresh your orders to check.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              {paymentError && (
+                <p className="text-sm text-destructive">{paymentError}</p>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setPayOrder(null)} disabled={initiatingPayment}>
+              Cancel
+            </Button>
+            {payOrder && (
+              !paymentInitiated ? (
+                <Button onClick={handleInitiatePayment} disabled={initiatingPayment}>
+                  {initiatingPayment ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Smartphone className="w-4 h-4 mr-2" />
+                      Pay with M-Pesa
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={handleRefreshOrders}>
+                    Refresh status
+                  </Button>
+                  <Button onClick={() => setPayOrder(null)}>
+                    Done
+                  </Button>
+                </>
+              )
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

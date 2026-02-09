@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+const WISHLIST_STORAGE_KEY = 'biashara_wishlist'
+
 const MOCK_CUSTOMERS = [
   { id: 'cust-1', name: 'Jane Mwangi' },
   { id: 'cust-2', name: 'Ahmed Hassan' },
@@ -49,6 +51,19 @@ export default function WishlistPage() {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    if (!user?.id || !isCustomerView || typeof window === 'undefined') return
+    try {
+      const raw = localStorage.getItem(`${WISHLIST_STORAGE_KEY}_${user.id}`)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) setOwnWishlist(parsed)
+      }
+    } catch {
+      // ignore
+    }
+  }, [user?.id, isCustomerView])
+
   const wishlist = isCustomerView || !canActOnBehalf
     ? ownWishlist
     : (MOCK_CUSTOMER_WISHLISTS[selectedCustomerId] ?? [])
@@ -56,7 +71,17 @@ export default function WishlistPage() {
 
   const removeFromWishlist = (productId: string) => {
     if (isCustomerView || !canActOnBehalf) {
-      setOwnWishlist((prev) => prev.filter((id) => id !== productId))
+      setOwnWishlist((prev) => {
+        const next = prev.filter((id) => id !== productId)
+        if (user?.id && typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(`${WISHLIST_STORAGE_KEY}_${user.id}`, JSON.stringify(next))
+          } catch {
+            // ignore
+          }
+        }
+        return next
+      })
     } else {
       // On-behalf view: mock only; in real app would call API
       setSelectedCustomerId((id) => id)
@@ -66,7 +91,7 @@ export default function WishlistPage() {
   const totalValue = wishlistItems.reduce((sum, p) => sum + p.price, 0)
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>

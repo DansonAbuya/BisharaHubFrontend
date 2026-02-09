@@ -15,6 +15,7 @@ import {
   Store,
   Truck,
   Shield,
+  FileCheck,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -34,6 +35,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
       { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
       { label: 'Staff', icon: Users, href: '/dashboard/staff' },
+      { label: 'Verification', icon: FileCheck, href: '/dashboard/verification' },
       { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
       { label: 'Wishlist (customer)', icon: Package, href: '/dashboard/wishlist' },
       { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
@@ -59,7 +61,8 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
       { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
       { label: 'Staff', icon: Users, href: '/dashboard/staff' },
-      { label: 'Add Owners', icon: Shield, href: '/dashboard/admin/owners' },
+      { label: 'Onboard Business', icon: Shield, href: '/dashboard/admin/owners' },
+      { label: 'Verify Business', icon: Shield, href: '/dashboard/admin/pending-verification' },
       { label: 'Assistant Admins', icon: Users, href: '/dashboard/admin/assistant-admins' },
       { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
       { label: 'Wishlist', icon: Package, href: '/dashboard/wishlist' },
@@ -68,6 +71,7 @@ export function Sidebar({ onClose }: SidebarProps) {
     ],
     assistant_admin: [
       { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
+      { label: 'Verify Business', icon: Shield, href: '/dashboard/admin/pending-verification' },
       { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
     ],
   }
@@ -94,21 +98,21 @@ export function Sidebar({ onClose }: SidebarProps) {
               href={item.href}
               onClick={() => onClose?.()}
               className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-3 px-4 min-h-[44px] rounded-lg text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-primary-foreground text-primary'
-                  : 'text-primary-foreground hover:bg-primary/80',
+                  : 'text-primary-foreground hover:bg-primary/80 active:bg-primary/70',
               )}
             >
-              <item.icon className="w-5 h-5" />
-              {item.label}
+              <item.icon className="w-5 h-5 shrink-0" />
+              <span className="truncate">{item.label}</span>
             </Link>
           )
         })}
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-primary/30 space-y-3">
+      <div className="p-4 border-t border-primary/30 space-y-3 safe-area-pb">
         <div className="px-2">
           <p className="text-xs text-primary-foreground/70 uppercase tracking-wider font-semibold">
             Logged in as

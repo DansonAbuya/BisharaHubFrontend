@@ -115,6 +115,20 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Safe area for notched devices (PWA / mobile) */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0);
+}
+.safe-area-pl {
+  padding-left: env(safe-area-inset-left, 0);
+}
+.safe-area-pr {
+  padding-right: env(safe-area-inset-right, 0);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

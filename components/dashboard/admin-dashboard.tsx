@@ -4,48 +4,68 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Shield, UserPlus, Users, Settings } from 'lucide-react'
+import { Shield, UserPlus, Users, Settings, FileCheck } from 'lucide-react'
 
 export function AdminDashboard() {
   const { user } = useAuth()
 
   if (user?.role === 'assistant_admin') {
     return (
-      <div className="p-8 space-y-8">
+      <div className="space-y-6 sm:space-y-8">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Welcome, {user?.name ?? 'there'}</h1>
           <p className="text-muted-foreground">
-            You are logged in as an assistant administrator. 2FA is always on for your account.
+            You are logged in as an assistant administrator. You can verify business owners and assign seller tiers. 2FA is always on for your account.
           </p>
         </div>
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2">
-              <Settings className="w-5 h-5" />
-              Settings
-            </CardTitle>
-            <CardDescription>
-              Change your password and manage your account.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/dashboard/settings">
-              <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
-                Open Settings
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <FileCheck className="w-5 h-5" />
+                Verify Business
+              </CardTitle>
+              <CardDescription>
+                Approve or reject pending businesses and assign seller tier (Informal, Registered SME, Corporate).
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/dashboard/admin/pending-verification">
+                <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+                  Open Verify Business
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                Settings
+              </CardTitle>
+              <CardDescription>
+                Change your password and manage your account.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/dashboard/settings">
+                <Button variant="outline" className="gap-2">
+                  Open Settings
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">Welcome, {user?.name ?? 'there'}</h1>
         <p className="text-muted-foreground">
-          Manage the BiasharaHub platform and onboard business owners
+          Manage the BiasharaHub platform and onboard businesses
         </p>
       </div>
 
@@ -54,17 +74,35 @@ export function AdminDashboard() {
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
               <Shield className="w-5 h-5" />
-              Add Business Owners
+              Onboard Business
             </CardTitle>
             <CardDescription>
-              Onboard new business owners to the platform. Owners can then add their staff and manage their business.
+              Onboard new businesses (business admin name, business email, business name, tier). A temporary password is sent to the business email; the admin starts as pending verification.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Link href="/dashboard/admin/owners">
               <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
                 <UserPlus className="w-4 h-4" />
-                Add Owner
+                Onboard Business
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <FileCheck className="w-5 h-5" />
+              Verify Business
+            </CardTitle>
+            <CardDescription>
+              Approve or reject pending businesses and assign seller tier (Informal, Registered SME, Corporate). Verified businesses’ shops appear on the platform.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/dashboard/admin/pending-verification">
+              <Button variant="outline" className="gap-2">
+                Open Verify Business
               </Button>
             </Link>
           </CardContent>

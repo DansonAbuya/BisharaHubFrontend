@@ -1,0 +1,19 @@
+{
+  "name": "BiasharaHub",
+  "short_name": "BiasharaHub",
+  "description": "Business management and commerce platform for African SMEs",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8faf8",
+  "theme_color": "#2d6a4f",
+  "categories": ["business", "shopping", "productivity"],
+  "icons": [
+    { "src": "/logo-favicon.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/logo-favicon.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/logo-favicon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/logo-favicon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "prefer_related_applications": false
+}

@@ -39,7 +39,7 @@ export function OwnerDashboard() {
     : `Welcome back, ${user?.name ?? 'there'}`
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
