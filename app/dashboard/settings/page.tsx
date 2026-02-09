@@ -81,7 +81,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 max-w-2xl">
+    <div className="space-y-6 sm:space-y-8 max-w-2xl">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>

@@ -23,7 +23,7 @@ export default function AssistantAdminsPage() {
 
   if (user?.role !== 'super_admin') {
     return (
-      <div className="p-8">
+      <div>
         <Card className="border-border">
           <CardContent className="py-16 text-center">
             <p className="text-foreground font-medium">
@@ -59,7 +59,7 @@ export default function AssistantAdminsPage() {
   }
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Add Assistant Admins</h1>

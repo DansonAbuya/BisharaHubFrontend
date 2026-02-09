@@ -39,11 +39,12 @@ export interface RegisterRequest {
   password: string
 }
 
-/** Add owner: name, email, business name; backend sends temp password by email */
+/** Add owner: name, email, business name; optional applyingForTier (tier1/tier2/tier3) so owner knows which documents to submit */
 export interface AddOwnerRequest {
   name: string
   email: string
   businessName: string
+  applyingForTier?: string
 }
 
 /** Add staff: name + email only; backend sends temp password by email */
@@ -220,6 +221,123 @@ export async function listStaff(): Promise<AuthUser[]> {
   return res.json()
 }
 
+// --- Owner verification (admin: list pending, approve/reject with tier) ---
+
+/** Owner DTO as returned by verification endpoints (includes verification status, seller tier, applying for tier). */
+export interface OwnerVerificationDto {
+  id: string
+  name: string
+  email: string
+  role: string
+  businessId?: string
+  businessName?: string
+  verificationStatus?: string
+  verifiedAt?: string
+  verifiedByUserId?: string
+  verificationNotes?: string
+  sellerTier?: string
+  applyingForTier?: string
+}
+
+/** Verification document (owner uploads; admin reviews). */
+export interface OwnerVerificationDocumentDto {
+  documentId: string
+  userId: string
+  documentType: string
+  fileUrl: string
+  uploadedAt: string
+}
+
+/** List owners pending verification. Admin only. */
+export async function listPendingOwners(): Promise<OwnerVerificationDto[]> {
+  const res = await fetch(`${API_BASE}/verification/admin/pending-owners`, {
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) throw new Error('Failed to fetch pending owners')
+  return res.json()
+}
+
+/** Admin: get verification documents for an owner (to review before verify/reject). */
+export async function getOwnerDocuments(ownerId: string): Promise<OwnerVerificationDocumentDto[]> {
+  const res = await fetch(`${API_BASE}/verification/admin/owners/${ownerId}/documents`, {
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) throw new Error('Failed to fetch owner documents')
+  return res.json()
+}
+
+/** Set owner verification status and optionally seller tier. Admin only. status: verified | rejected; sellerTier: tier1 | tier2 | tier3. */
+export async function setOwnerVerification(
+  ownerId: string,
+  body: { status: 'verified' | 'rejected'; notes?: string; sellerTier?: 'tier1' | 'tier2' | 'tier3' }
+): Promise<OwnerVerificationDto> {
+  const res = await fetch(`${API_BASE}/verification/admin/owners/${ownerId}`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to update verification')
+  }
+  return res.json()
+}
+
+/** Owner: get my verification status (pending/verified/rejected, applyingForTier). */
+export async function getMyVerificationStatus(): Promise<OwnerVerificationDto | null> {
+  const res = await fetch(`${API_BASE}/verification/status`, { headers: getAuthHeaders() })
+  if (!res.ok) return null
+  return res.json()
+}
+
+/** Owner: list my uploaded verification documents. */
+export async function getMyVerificationDocuments(): Promise<OwnerVerificationDocumentDto[]> {
+  const res = await fetch(`${API_BASE}/verification/documents`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch documents')
+  return res.json()
+}
+
+/** Owner: upload a verification document (documentType + fileUrl). Use uploadVerificationDocumentFile for file uploads. */
+export async function uploadVerificationDocument(
+  documentType: string,
+  fileUrl: string
+): Promise<OwnerVerificationDocumentDto> {
+  const res = await fetch(`${API_BASE}/verification/documents`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ documentType, fileUrl }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to upload document')
+  }
+  return res.json()
+}
+
+/** Owner: upload a verification document file (image or PDF). Uses dedicated verification upload endpoint. */
+export async function uploadVerificationDocumentFile(
+  documentType: string,
+  file: File
+): Promise<OwnerVerificationDocumentDto> {
+  const formData = new FormData()
+  formData.append('documentType', documentType)
+  formData.append('file', file)
+  const token = typeof window !== 'undefined' ? sessionStorage.getItem('biashara_token') : null
+  const headers: Record<string, string> = { 'X-Tenant-ID': DEFAULT_TENANT_ID }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(`${API_BASE}/verification/documents/upload`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to upload document')
+  }
+  return res.json()
+}
+
 // --- Products & Categories (backend: business-scoped for owner/staff, R2 images) ---
 
 export interface ProductCategoryDto {
@@ -232,6 +350,7 @@ export interface BusinessDto {
   id: string
   name: string
   ownerName: string
+  sellerTier?: string
 }
 
 /** List businesses (owners) for customer filter dropdown. */
@@ -347,6 +466,102 @@ export async function deleteProduct(id: string): Promise<void> {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || 'Failed to delete product')
   }
+}
+
+/** Current user (id, name, email, role) for role-based UI. Backend: GET /users/me */
+export async function getCurrentUser(): Promise<AuthUser | null> {
+  const res = await fetch(`${API_BASE}/users/me`, { headers: getAuthHeaders() })
+  if (!res.ok) return null
+  return res.json()
+}
+
+// --- Orders (backend: create order, list, get one) ---
+
+export interface OrderItemDto {
+  productId: string
+  productName: string
+  quantity: number
+  price: number
+  subtotal: number
+}
+
+export interface OrderDto {
+  id: string
+  orderId?: string
+  customerId: string
+  customerName?: string
+  customerEmail?: string
+  businessId?: string
+  items: OrderItemDto[]
+  total: number
+  status: string
+  paymentStatus?: string
+  paymentMethod?: string
+  paymentId?: string
+  createdAt: string
+  updatedAt?: string
+  shippingAddress?: string
+}
+
+export async function listOrders(): Promise<OrderDto[]> {
+  const res = await fetch(`${API_BASE}/orders`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch orders')
+  return res.json()
+}
+
+export async function getOrder(id: string): Promise<OrderDto> {
+  const res = await fetch(`${API_BASE}/orders/${id}`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch order')
+  return res.json()
+}
+
+/** Create order (auth required). Body: items (productId, quantity), optional shippingAddress. */
+export async function createOrder(body: {
+  items: { productId: string; quantity: number }[]
+  shippingAddress?: string
+}): Promise<OrderDto> {
+  const res = await fetch(`${API_BASE}/orders`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { message?: string }).message || (err as { error?: string }).error || 'Failed to create order')
+  }
+  return res.json()
+}
+
+/** Initiate M-Pesa payment for an order (STK Push). Phone: 254XXXXXXXXX or 07XXXXXXXX. */
+export async function initiatePayment(orderId: string, body: { phoneNumber: string }): Promise<{
+  paymentId: string
+  checkoutRequestId: string
+  status: string
+  message: string
+}> {
+  const res = await fetch(`${API_BASE}/orders/${orderId}/payments/initiate`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { message?: string }).message || (err as { error?: string }).error || 'Failed to initiate payment')
+  }
+  return res.json()
+}
+
+/** Confirm payment (e.g. after M-Pesa callback or for testing when callback is not reachable). */
+export async function confirmPayment(orderId: string, paymentId: string): Promise<{ status: string; paymentId: string }> {
+  const res = await fetch(`${API_BASE}/orders/${orderId}/payments/${paymentId}/confirm`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { message?: string }).message || (err as { error?: string }).error || 'Failed to confirm payment')
+  }
+  return res.json()
 }
 
 /** Upload product image to R2 (owner/staff only). Returns { url }. */

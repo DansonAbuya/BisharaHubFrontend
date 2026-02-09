@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,8 @@ import { Eye, EyeOff } from 'lucide-react'
 
 export default function SignUpPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const returnUrl = searchParams.get('returnUrl') || '/dashboard'
   const { register, verifyCode, pendingTwoFactor, cancelTwoFactor, isLoading } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -38,7 +40,7 @@ export default function SignUpPage() {
     }
     try {
       const result = await register(name, email, password)
-      if (!result.requiresTwoFactor) router.push('/dashboard')
+      if (!result.requiresTwoFactor) router.push(returnUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
     }
@@ -53,7 +55,7 @@ export default function SignUpPage() {
     setError('')
     try {
       await verifyCode(pendingTwoFactor.email, code)
-      router.push('/dashboard')
+      router.push(returnUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid or expired code')
     }

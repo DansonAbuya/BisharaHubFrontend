@@ -37,7 +37,7 @@ export default function AnalyticsPage() {
   const canAccessAnalytics = user?.role === 'owner' || user?.role === 'super_admin'
   if (!canAccessAnalytics) {
     return (
-      <div className="p-8">
+      <div>
         <Card className="border-border">
           <CardContent className="py-16 text-center">
             <p className="text-foreground font-medium">This page is only available to business owners and platform admins.</p>
@@ -85,7 +85,7 @@ export default function AnalyticsPage() {
   ]
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>

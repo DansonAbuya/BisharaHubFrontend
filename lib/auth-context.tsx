@@ -22,13 +22,15 @@ export interface PendingTwoFactor {
 
 interface AuthContextType {
   user: AuthUser | null
+  /** True until we've run the initial session restore (sessionStorage / API). Use to avoid redirecting to login before we know if user is logged in. */
+  isInitialized: boolean
   isLoading: boolean
   /** Set when backend returns requiresTwoFactor; clear after verifyCode or cancel */
   pendingTwoFactor: PendingTwoFactor | null
-  login: (email: string, password: string) => Promise<{ requiresTwoFactor: boolean }>
+  login: (email: string, password: string) => Promise<{ requiresTwoFactor: boolean; user?: AuthUser }>
   register: (name: string, email: string, password: string) => Promise<{ requiresTwoFactor: boolean }>
-  /** Complete login/register after 2FA code is entered */
-  verifyCode: (email: string, code: string) => Promise<void>
+  /** Complete login/register after 2FA code is entered. Returns the authenticated user on success. */
+  verifyCode: (email: string, code: string) => Promise<AuthUser | null>
   cancelTwoFactor: () => void
   logout: () => void
 }
@@ -93,6 +95,7 @@ function toAuthUser(u: api.AuthUser): AuthUser {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [isInitialized, setIsInitialized] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   const [pendingTwoFactor, setPendingTwoFactor] = useState<PendingTwoFactor | null>(null)
@@ -105,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (refreshToken) sessionStorage.setItem('biashara_refresh_token', refreshToken)
   }
 
-  const login = async (email: string, password: string): Promise<{ requiresTwoFactor: boolean }> => {
+  const login = async (email: string, password: string): Promise<{ requiresTwoFactor: boolean; user?: AuthUser }> => {
     setIsLoading(true)
     setPendingTwoFactor(null)
     try {
@@ -115,14 +118,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setPendingTwoFactor({ email, user: toAuthUser(res.user) })
           return { requiresTwoFactor: true }
         }
-        persistSession(toAuthUser(res.user), res.token, res.refreshToken)
-        return { requiresTwoFactor: false }
+        const authUser = toAuthUser(res.user)
+        persistSession(authUser, res.token, res.refreshToken)
+        return { requiresTwoFactor: false, user: authUser }
       }
       await new Promise((r) => setTimeout(r, 500))
       const record = MOCK_USERS[email.toLowerCase()]
       if (!record || record.password !== password) throw new Error('Invalid credentials')
       persistSession(record.user)
-      return { requiresTwoFactor: false }
+      return { requiresTwoFactor: false, user: record.user }
     } finally {
       setIsLoading(false)
     }
@@ -152,12 +156,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const verifyCode = async (email: string, code: string) => {
-    if (!USE_API) return
+  const verifyCode = async (email: string, code: string): Promise<AuthUser | null> => {
+    if (!USE_API) return null
     setIsLoading(true)
     try {
       const res = await api.verifyCode(email, code)
-      persistSession(toAuthUser(res.user), res.token, res.refreshToken)
+      const authUser = toAuthUser(res.user)
+      persistSession(authUser, res.token, res.refreshToken)
+      return authUser
+    } catch {
+      return null
     } finally {
       setIsLoading(false)
     }
@@ -174,18 +182,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   React.useEffect(() => {
-    const stored = sessionStorage.getItem('biashara_user')
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored))
-      } catch (e) {
-        console.error('Failed to restore user session', e)
+    let cancelled = false
+    const init = async () => {
+      const stored = sessionStorage.getItem('biashara_user')
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as AuthUser
+          if (USE_API && typeof window !== 'undefined') {
+            try {
+              const fresh = await api.getCurrentUser()
+              if (!cancelled && fresh) setUser(toAuthUser(fresh))
+            } catch {
+              if (!cancelled) setUser(parsed)
+            }
+          } else if (!cancelled) {
+            setUser(parsed)
+          }
+        } catch (e) {
+          console.error('Failed to restore user session', e)
+        }
       }
+      if (!cancelled) setIsInitialized(true)
     }
+    init()
+    return () => { cancelled = true }
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, pendingTwoFactor, login, register, verifyCode, cancelTwoFactor, logout }}>
+    <AuthContext.Provider value={{ user, isInitialized, isLoading, pendingTwoFactor, login, register, verifyCode, cancelTwoFactor, logout }}>
       {children}
     </AuthContext.Provider>
   )

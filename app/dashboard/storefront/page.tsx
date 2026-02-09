@@ -5,9 +5,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { listProducts, listProductCategories, type ProductDto, type ProductCategoryDto } from '@/lib/api'
-import { ShoppingCart, Heart, Star, Filter, Loader2 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { listProducts, listProductCategories, createOrder, initiatePayment, type ProductDto, type ProductCategoryDto, type OrderDto } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
+import { ShoppingCart, Heart, Star, Filter, Loader2, Smartphone } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+
+const WISHLIST_STORAGE_KEY = 'biashara_wishlist'
 
 interface CartItem {
   productId: string
@@ -15,6 +28,8 @@ interface CartItem {
 }
 
 export default function StorefrontPage() {
+  const router = useRouter()
+  const { user } = useAuth()
   const [products, setProducts] = useState<ProductDto[]>([])
   const [categories, setCategories] = useState<ProductCategoryDto[]>([])
   const [loading, setLoading] = useState(true)
@@ -23,6 +38,30 @@ export default function StorefrontPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [sortBy, setSortBy] = useState('featured')
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [checkoutStep, setCheckoutStep] = useState<'review' | 'payment'>('review')
+  const [createdOrder, setCreatedOrder] = useState<OrderDto | null>(null)
+  const [shippingAddress, setShippingAddress] = useState('')
+  const [orderError, setOrderError] = useState('')
+  const [placingOrder, setPlacingOrder] = useState(false)
+  const [mpesaPhone, setMpesaPhone] = useState('')
+  const [paymentInitiated, setPaymentInitiated] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
+  const [initiatingPayment, setInitiatingPayment] = useState(false)
+
+  useEffect(() => {
+    if (user?.id && typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(`${WISHLIST_STORAGE_KEY}_${user.id}`)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed)) setWishlist(parsed)
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [user?.id])
 
   useEffect(() => {
     let cancelled = false
@@ -78,9 +117,19 @@ export default function StorefrontPage() {
   }
 
   const toggleWishlist = (productId: string) => {
-    setWishlist((prev) =>
-      prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId],
-    )
+    setWishlist((prev) => {
+      const next = prev.includes(productId)
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId]
+      if (user?.id && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`${WISHLIST_STORAGE_KEY}_${user.id}`, JSON.stringify(next))
+        } catch {
+          // ignore
+        }
+      }
+      return next
+    })
   }
 
   const cartTotal = cart.reduce((sum, item) => {
@@ -88,14 +137,98 @@ export default function StorefrontPage() {
     return sum + (product?.price ?? 0) * item.quantity
   }, 0)
 
+  const handleCheckoutClick = () => {
+    if (cart.length === 0) return
+    setOrderError('')
+    setPaymentError('')
+    setShippingAddress('')
+    setCheckoutStep('review')
+    setCreatedOrder(null)
+    setPaymentInitiated(false)
+    setMpesaPhone('')
+    setCheckoutOpen(true)
+  }
+
+  const normalizeMpesaPhone = (raw: string): string => {
+    const digits = raw.replace(/\D/g, '')
+    if (digits.startsWith('254')) return digits
+    if (digits.startsWith('0')) return '254' + digits.slice(1)
+    if (digits.length >= 9) return '254' + digits.slice(-9)
+    return digits
+  }
+
+  const handlePlaceOrder = async () => {
+    if (cart.length === 0) return
+    setPlacingOrder(true)
+    setOrderError('')
+    try {
+      const items = cart.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      }))
+      const order = await createOrder({
+        items,
+        shippingAddress: shippingAddress.trim() || undefined,
+      })
+      setCreatedOrder(order)
+      setCart([])
+      setCheckoutStep('payment')
+    } catch (e) {
+      setOrderError(e instanceof Error ? e.message : 'Failed to place order')
+    } finally {
+      setPlacingOrder(false)
+    }
+  }
+
+  const handleInitiatePayment = async () => {
+    if (!createdOrder?.id || !mpesaPhone.trim()) {
+      setPaymentError('Enter your M-Pesa phone number (e.g. 07XXXXXXXX or 254XXXXXXXXX)')
+      return
+    }
+    setInitiatingPayment(true)
+    setPaymentError('')
+    try {
+      await initiatePayment(createdOrder.id, {
+        phoneNumber: normalizeMpesaPhone(mpesaPhone.trim()),
+      })
+      setPaymentInitiated(true)
+    } catch (e) {
+      setPaymentError(e instanceof Error ? e.message : 'Failed to send M-Pesa prompt')
+    } finally {
+      setInitiatingPayment(false)
+    }
+  }
+
+  const handleViewOrders = () => {
+    setCheckoutStep('review')
+    setCreatedOrder(null)
+    setPaymentInitiated(false)
+    setCheckoutOpen(false)
+    router.push('/dashboard/orders')
+  }
+
+  const handleCheckoutOpenChange = (open: boolean) => {
+    if (!open) {
+      if (checkoutStep === 'payment') return
+      setCheckoutStep('review')
+      setCreatedOrder(null)
+      setPaymentInitiated(false)
+      setPaymentError('')
+    }
+    setCheckoutOpen(open)
+  }
+
   return (
-    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
+    <div className={`space-y-4 sm:space-y-6 ${cart.length > 0 ? 'pb-28 safe-area-pb' : ''}`}>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Browse Products</h1>
           <p className="text-sm sm:text-base text-muted-foreground">Discover our handcrafted collection</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground relative w-full sm:w-auto">
+        <Button
+          className="bg-primary hover:bg-primary/90 text-primary-foreground relative w-full sm:w-auto"
+          onClick={handleCheckoutClick}
+        >
           <ShoppingCart className="w-4 h-4 mr-2" />
           Cart
           {cart.length > 0 && (
@@ -248,25 +381,179 @@ export default function StorefrontPage() {
       )}
 
       {cart.length > 0 && (
-        <Card className="border-border bg-primary/5 sticky bottom-4">
-          <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">{cart.length} items in cart</p>
-              <p className="text-2xl font-bold text-primary">KES {(cartTotal / 1000).toFixed(0)}K</p>
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+          <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 max-w-6xl">
+            <div className="flex items-center gap-4 min-w-0">
+              <p className="text-sm text-muted-foreground shrink-0">{cart.length} item{cart.length !== 1 ? 's' : ''} in cart</p>
+              <p className="text-xl sm:text-2xl font-bold text-primary truncate">KES {(cartTotal / 1000).toFixed(0)}K</p>
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <Button href="/dashboard/storefront" className="flex-1 sm:flex-none bg-secondary hover:bg-secondary/90 text-foreground gap-2">
-                Continue Shopping
+            <div className="flex gap-2 flex-shrink-0">
+              <Button variant="outline" className="flex-1 sm:flex-none bg-secondary hover:bg-secondary/90 text-foreground gap-2" asChild>
+                <Link href="/dashboard/storefront">Continue Shopping</Link>
               </Button>
-              <Button className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+              <Button
+                className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+                onClick={handleCheckoutClick}
+              >
                 <ShoppingCart className="w-4 h-4" />
                 <span className="hidden sm:inline">Proceed to Checkout</span>
                 <span className="sm:hidden">Checkout</span>
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
+
+      <Dialog
+        open={checkoutOpen}
+        onOpenChange={(open) => {
+          if (!open && checkoutStep === 'payment') return
+          handleCheckoutOpenChange(open)
+        }}
+      >
+        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+          {checkoutStep === 'review' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-foreground">Checkout</DialogTitle>
+                <DialogDescription>
+                  Review your order and add an optional shipping address. You will be asked to pay with M-Pesa before completing.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0">
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-2">Order summary</p>
+                  <ul className="border border-border rounded-lg divide-y divide-border max-h-48 overflow-y-auto">
+                    {cart.map((item) => {
+                      const product = products.find((p) => p.id === item.productId)
+                      const lineTotal = (product?.price ?? 0) * item.quantity
+                      return (
+                        <li key={item.productId} className="px-3 py-2 flex justify-between items-center gap-2 text-sm">
+                          <span className="text-foreground truncate">
+                            {product?.name ?? 'Product'} × {item.quantity}
+                          </span>
+                          <span className="font-medium text-primary shrink-0">
+                            KES {(lineTotal / 1000).toFixed(0)}K
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                  <p className="text-sm text-muted-foreground mt-2 flex justify-between">
+                    <span>Total</span>
+                    <span className="font-bold text-foreground">KES {(cartTotal / 1000).toFixed(0)}K</span>
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground">Shipping address (optional)</label>
+                  <Input
+                    placeholder="Street, city, postal code"
+                    value={shippingAddress}
+                    onChange={(e) => setShippingAddress(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                {orderError && (
+                  <p className="text-sm text-destructive">{orderError}</p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCheckoutOpen(false)} disabled={placingOrder}>
+                  Cancel
+                </Button>
+                <Button onClick={handlePlaceOrder} disabled={placingOrder}>
+                  {placingOrder ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Placing order...
+                    </>
+                  ) : (
+                    'Place order'
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-foreground">Complete your order — Pay with M-Pesa</DialogTitle>
+                <DialogDescription>
+                  Your order is placed. Pay now to complete it. You will receive an M-Pesa prompt on your phone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0">
+                {createdOrder && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <p className="text-sm font-medium text-foreground">Amount to pay</p>
+                    <p className="text-2xl font-bold text-primary mt-1">
+                      KES {(Number(createdOrder.total) / 1000).toFixed(0)}K
+                    </p>
+                  </div>
+                )}
+                {!paymentInitiated ? (
+                  <div>
+                    <label className="text-sm font-medium text-foreground">M-Pesa phone number</label>
+                    <Input
+                      placeholder="07XXXXXXXX or 254XXXXXXXXX"
+                      value={mpesaPhone}
+                      onChange={(e) => setMpesaPhone(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                    <Smartphone className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Complete payment on your phone</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Enter your M-Pesa PIN on your phone. Payment status will update automatically when M-Pesa confirms—no need to do anything else here.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {paymentError && (
+                  <p className="text-sm text-destructive">{paymentError}</p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  onClick={() => {
+                    setCheckoutStep('review')
+                    setCreatedOrder(null)
+                    setPaymentInitiated(false)
+                    setCheckoutOpen(false)
+                    router.push('/dashboard/orders')
+                  }}
+                  disabled={initiatingPayment}
+                >
+                  I&apos;ll pay later
+                </Button>
+                {!paymentInitiated ? (
+                  <Button onClick={handleInitiatePayment} disabled={initiatingPayment}>
+                    {initiatingPayment ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Smartphone className="w-4 h-4 mr-2" />
+                        Pay now to complete order
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <Button onClick={handleViewOrders}>
+                    View my orders
+                  </Button>
+                )}
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
