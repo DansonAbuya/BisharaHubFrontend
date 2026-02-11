@@ -1,14 +1,25 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { ShoppingBag, Heart, MapPin, Truck, Loader2, ShoppingCart, Store } from 'lucide-react'
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { listProducts, listOrders, listBusinesses, type ProductDto, type OrderDto, type BusinessDto } from '@/lib/api'
-import { ShoppingBag, Heart, MapPin, Truck, Loader2, ShoppingCart, Store } from 'lucide-react'
-import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import {
+  listProducts,
+  listOrders,
+  listBusinesses,
+  type ProductDto,
+  type OrderDto,
+  type BusinessDto,
+} from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
-import Image from 'next/image'
+
+import { PageHeader } from '@/components/layout/page-header'
+import { PageSection } from '@/components/layout/page-section'
 
 const TIER_LABELS: Record<string, string> = {
   tier1: 'Informal',
@@ -108,23 +119,20 @@ export function CustomerDashboard() {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Welcome Back, {user?.name ?? 'there'}
-          </h1>
-          <p className="text-muted-foreground">Browse our products and track your orders</p>
-        </div>
-        <Link href="/shop">
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            Continue Shopping
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title={`Welcome back, ${user?.name ?? 'there'}`}
+        description="Browse verified shops, keep an eye on your orders, and manage your wishlist."
+        actions={
+          <Link href="/shop">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              Continue Shopping
+            </Button>
+          </Link>
+        }
+      />
 
-      {/* Quick Actions / Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <PageSection>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Link href="/dashboard/orders">
           <Card className="border-border cursor-pointer hover:shadow-md transition">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -171,10 +179,11 @@ export function CustomerDashboard() {
             </CardContent>
           </Card>
         </Link>
-      </div>
+        </div>
+      </PageSection>
 
-      {/* Recent Orders */}
-      <Card className="border-border">
+      <PageSection>
+        <Card className="border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-foreground">Recent Orders</CardTitle>
@@ -264,10 +273,11 @@ export function CustomerDashboard() {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      </PageSection>
 
-      {/* Products by shop */}
-      <Card className="border-border">
+      <PageSection>
+        <Card className="border-border">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <CardTitle className="text-foreground flex items-center gap-2">
@@ -394,7 +404,8 @@ export function CustomerDashboard() {
           </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      </PageSection>
     </div>
   )
 }

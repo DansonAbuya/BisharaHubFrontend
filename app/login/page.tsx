@@ -53,8 +53,8 @@ export default function LoginPage() {
   const show2FAStep = !!pendingTwoFactor
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8">
+    <div className="flex-1 min-h-0 overflow-y-auto bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-8 py-4">
         <div className="text-center">
           <Link href="/" className="inline-block mb-2">
             <Image src="/logo-favicon.png" alt="BiasharaHub" width={120} height={120} className="mx-auto" priority />
@@ -170,7 +170,6 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-sm text-muted-foreground">© 2026 BiasharaHub. All rights reserved.</p>
       </div>
     </div>
   )

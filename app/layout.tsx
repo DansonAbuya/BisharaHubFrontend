@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth-context'
 import { NotificationsProvider } from '@/lib/notifications-context'
 import { PwaInstallPrompt } from '@/components/pwa-install-prompt'
+import { Footer } from '@/components/layout/Footer'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -40,10 +41,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="font-sans antialiased min-h-screen min-h-[100dvh] bg-background text-foreground">
+      <body className="font-sans antialiased bg-background text-foreground">
         <AuthProvider>
           <NotificationsProvider>
-            {children}
+            <div className="h-[100dvh] max-h-[100dvh] flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+                {children}
+              </div>
+              <Footer compact className="shrink-0" />
+            </div>
             <PwaInstallPrompt />
           </NotificationsProvider>
         </AuthProvider>

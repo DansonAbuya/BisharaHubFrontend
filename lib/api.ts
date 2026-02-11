@@ -37,6 +37,8 @@ export interface RegisterRequest {
   name: string
   email: string
   password: string
+  /** Optional phone for WhatsApp (e.g. +254712345678 or 0712345678). */
+  phone?: string
 }
 
 /** Add owner: name, email, business name; optional applyingForTier (tier1/tier2/tier3) so owner knows which documents to submit */
@@ -353,6 +355,117 @@ export interface BusinessDto {
   sellerTier?: string
 }
 
+// --- Seller pricing & white-label config (admin + owner dashboard) ---
+
+export interface SellerConfigDto {
+  userId: string
+  email: string
+  name: string | null
+  role: string
+  businessId?: string | null
+  businessName?: string | null
+  sellerTier?: string | null
+  verificationStatus?: string | null
+  pricingPlan?: string | null
+  /** Growth plan feature flags (only when pricingPlan is "growth"). */
+  growthInventoryAutomation?: boolean | null
+  growthWhatsappEnabled?: boolean | null
+  growthAnalyticsEnabled?: boolean | null
+  growthDeliveryIntegrations?: boolean | null
+  brandingEnabled?: boolean | null
+  brandingName?: string | null
+  brandingLogoUrl?: string | null
+  brandingPrimaryColor?: string | null
+  brandingSecondaryColor?: string | null
+}
+
+/** Admin: list all sellers (owners) with their pricing and branding config. */
+export async function listSellerConfigs(): Promise<SellerConfigDto[]> {
+  const res = await fetch(`${API_BASE}/admin/sellers/config`, { headers: getAuthHeaders() })
+  if (!res.ok) {
+    throw new Error('Failed to load seller configuration')
+  }
+  return res.json()
+}
+
+/** Admin: get a single seller's config (for setup screens). */
+export async function getSellerConfig(ownerId: string): Promise<SellerConfigDto | null> {
+  const res = await fetch(`${API_BASE}/admin/sellers/${ownerId}/config`, { headers: getAuthHeaders() })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error('Failed to load seller configuration')
+  return res.json()
+}
+
+/** Admin: set pricing plan for an owner (e.g. basic/growth/enterprise). */
+export async function setSellerPricingPlan(ownerId: string, pricingPlan: string): Promise<SellerConfigDto> {
+  const res = await fetch(`${API_BASE}/admin/sellers/${ownerId}/pricing`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ pricingPlan }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update pricing plan')
+  }
+  return res.json()
+}
+
+/** Admin: configure Growth plan features for an owner (only when plan is growth). */
+export async function setSellerGrowthConfig(
+  ownerId: string,
+  body: {
+    growthInventoryAutomation?: boolean
+    growthWhatsappEnabled?: boolean
+    growthAnalyticsEnabled?: boolean
+    growthDeliveryIntegrations?: boolean
+  }
+): Promise<SellerConfigDto> {
+  const res = await fetch(`${API_BASE}/admin/sellers/${ownerId}/growth-config`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update Growth config')
+  }
+  return res.json()
+}
+
+/** Admin: configure white-label branding for an owner. */
+export async function setSellerBranding(
+  ownerId: string,
+  body: {
+    brandingEnabled?: boolean
+    brandingName?: string | null
+    brandingLogoUrl?: string | null
+    brandingPrimaryColor?: string | null
+    brandingSecondaryColor?: string | null
+  }
+): Promise<SellerConfigDto> {
+  const res = await fetch(`${API_BASE}/admin/sellers/${ownerId}/branding`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update branding')
+  }
+  return res.json()
+}
+
+/** Seller (owner): read own pricing and branding configuration. */
+export async function getMySellerConfig(): Promise<SellerConfigDto | null> {
+  const res = await fetch(`${API_BASE}/sellers/me/config`, { headers: getAuthHeaders() })
+  if (res.status === 401 || res.status === 404) return null
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to load seller config')
+  }
+  return res.json()
+}
+
 /** List businesses (owners) for customer filter dropdown. */
 export async function listBusinesses(): Promise<BusinessDto[]> {
   const res = await fetch(`${API_BASE}/products/businesses`, {
@@ -468,10 +581,24 @@ export async function deleteProduct(id: string): Promise<void> {
   }
 }
 
-/** Current user (id, name, email, role) for role-based UI. Backend: GET /users/me */
+/** Current user (id, name, email, phone, role) for role-based UI. Backend: GET /users/me */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const res = await fetch(`${API_BASE}/users/me`, { headers: getAuthHeaders() })
   if (!res.ok) return null
+  return res.json()
+}
+
+/** Update current user profile (name, phone). Backend: PATCH /users/me. Use so customers can add phone for WhatsApp. */
+export async function updateMyProfile(body: { name?: string; phone?: string | null }): Promise<AuthUser> {
+  const res = await fetch(`${API_BASE}/users/me`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update profile')
+  }
   return res.json()
 }
 
@@ -501,6 +628,8 @@ export interface OrderDto {
   createdAt: string
   updatedAt?: string
   shippingAddress?: string
+  deliveryMode?: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP' | string
+  shippingFee?: number
 }
 
 export async function listOrders(): Promise<OrderDto[]> {
@@ -515,10 +644,12 @@ export async function getOrder(id: string): Promise<OrderDto> {
   return res.json()
 }
 
-/** Create order (auth required). Body: items (productId, quantity), optional shippingAddress. */
+/** Create order (auth required). Body: items, optional shippingAddress, deliveryMode & optional shippingFee. */
 export async function createOrder(body: {
   items: { productId: string; quantity: number }[]
   shippingAddress?: string
+  deliveryMode: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP'
+  shippingFee?: number
 }): Promise<OrderDto> {
   const res = await fetch(`${API_BASE}/orders`, {
     method: 'POST',
@@ -564,6 +695,137 @@ export async function confirmPayment(orderId: string, paymentId: string): Promis
   return res.json()
 }
 
+/** Cancel an order as long as it has not been confirmed yet (pending only). */
+export async function cancelOrder(orderId: string): Promise<OrderDto> {
+  const res = await fetch(`${API_BASE}/orders/${orderId}/cancel`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { message?: string }).message || (err as { error?: string }).error || 'Failed to cancel order')
+  }
+  return res.json()
+}
+
+// --- Analytics (owner/staff/super_admin dashboards) ---
+
+export interface AnalyticsSummaryDto {
+  totalOrders: number
+  totalRevenue: number
+  pendingOrders: number
+  averageOrderValue: number
+}
+
+export async function getAnalytics(): Promise<AnalyticsSummaryDto> {
+  const res = await fetch(`${API_BASE}/analytics`, { headers: getAuthHeaders() })
+  if (res.status === 401 || res.status === 403) {
+    throw new Error('Not authorized to view analytics')
+  }
+  if (!res.ok) {
+    throw new Error('Failed to load analytics')
+  }
+  const data = await res.json()
+  return {
+    totalOrders: Number(data.totalOrders ?? 0),
+    totalRevenue: Number(data.totalRevenue ?? 0),
+    pendingOrders: Number(data.pendingOrders ?? 0),
+    averageOrderValue: Number(data.averageOrderValue ?? 0),
+  }
+}
+
+// --- Shipments (backend: auto-created after payment, track delivery) ---
+
+export interface ShipmentDto {
+  id: string
+  orderId: string
+  deliveryMode: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP' | string
+  status: string
+  carrier?: string | null
+  trackingNumber?: string | null
+  shippedAt?: string | null
+  estimatedDelivery?: string | null
+  actualDelivery?: string | null
+  escrowReleasedAt?: string | null
+  // Phase 1: customer sees OTP in app for seller self-delivery / pickup.
+  otpCode?: string | null
+}
+
+// --- Reviews & feedback ---
+
+export interface OrderReviewDto {
+  reviewId: string
+  orderId: string
+  reviewerUserId: string
+  reviewerName: string
+  rating: number
+  comment?: string
+  createdAt: string
+}
+
+export async function getReviewForOrder(orderId: string): Promise<OrderReviewDto | null> {
+  const res = await fetch(`${API_BASE}/reviews/order/${orderId}`, { headers: getAuthHeaders() })
+  if (res.status === 404) return null
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to load review')
+  }
+  return res.json()
+}
+
+export async function createReview(orderId: string, rating: number, comment?: string): Promise<OrderReviewDto> {
+  const res = await fetch(`${API_BASE}/reviews`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ orderId, rating, comment }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { message?: string }).message || (err as { error?: string }).error || 'Failed to submit review')
+  }
+  return res.json()
+}
+
+export async function getBusinessRating(businessId: string): Promise<number> {
+  const res = await fetch(`${API_BASE}/reviews/business/${businessId}/rating`, {
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to load rating')
+  }
+  const value = await res.json()
+  return typeof value === 'number' ? value : 0
+}
+
+/** List shipments for the current tenant. Owner/staff: their business; customer: their orders only (backend-scoped). */
+export async function listShipments(): Promise<ShipmentDto[]> {
+  const res = await fetch(`${API_BASE}/shipments`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch shipments')
+  return res.json()
+}
+
+/** List shipments for a specific order (owner/staff or customer, scoped by backend). */
+export async function listShipmentsByOrder(orderId: string): Promise<ShipmentDto[]> {
+  const res = await fetch(`${API_BASE}/shipments/order/${orderId}`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch shipments for order')
+  return res.json()
+}
+
+/** Verify a shipment using OTP code (seller self-delivery or pickup). */
+export async function verifyShipmentOtp(shipmentId: string, code: string): Promise<ShipmentDto> {
+  const res = await fetch(`${API_BASE}/shipments/${shipmentId}/verify-otp`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ code }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Invalid or expired delivery code')
+  }
+  return res.json()
+}
+
 /** Upload product image to R2 (owner/staff only). Returns { url }. */
 export async function uploadProductImage(file: File): Promise<{ url: string }> {
   const formData = new FormData()
@@ -582,4 +844,50 @@ export async function uploadProductImage(file: File): Promise<{ url: string }> {
     throw new Error(err.error || 'Image upload failed')
   }
   return res.json()
+}
+
+// --- In-app notifications ---
+
+export type NotificationType = 'order' | 'shipment' | 'payment' | 'system' | 'alert' | string
+
+export interface NotificationDto {
+  id: string
+  type: NotificationType
+  title: string
+  message: string
+  actionUrl?: string | null
+  data?: string | null
+  read: boolean
+  createdAt: string
+}
+
+export async function listNotifications(options?: { unreadOnly?: boolean }): Promise<NotificationDto[]> {
+  const params = new URLSearchParams()
+  if (options?.unreadOnly) params.set('unreadOnly', 'true')
+  const qs = params.toString()
+  const url = qs ? `${API_BASE}/notifications?${qs}` : `${API_BASE}/notifications`
+  const res = await fetch(url, { headers: getAuthHeaders() })
+  if (res.status === 401) return []
+  if (!res.ok) throw new Error('Failed to load notifications')
+  return res.json()
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/notifications/${id}/read`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok && res.status !== 404) {
+    throw new Error('Failed to mark notification as read')
+  }
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  const res = await fetch(`${API_BASE}/notifications/read-all`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) {
+    throw new Error('Failed to mark notifications as read')
+  }
 }

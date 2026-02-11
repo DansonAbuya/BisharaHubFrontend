@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { listProducts, listProductCategories, createOrder, initiatePayment, type ProductDto, type ProductCategoryDto, type OrderDto } from '@/lib/api'
+import { listProducts, listProductCategories, createOrder, initiatePayment, getMySellerConfig, type ProductDto, type ProductCategoryDto, type OrderDto } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { ShoppingCart, Heart, Star, Filter, Loader2, Smartphone } from 'lucide-react'
 import Image from 'next/image'
@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 const WISHLIST_STORAGE_KEY = 'biashara_wishlist'
+const WISHLIST_CART_SEED_PREFIX = 'biashara_wishlist_cart_seed_'
 
 interface CartItem {
   productId: string
@@ -48,6 +49,11 @@ export default function StorefrontPage() {
   const [paymentInitiated, setPaymentInitiated] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [initiatingPayment, setInitiatingPayment] = useState(false)
+  const [deliveryMode, setDeliveryMode] = useState<'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP'>(
+    'SELLER_SELF',
+  )
+  const [shippingFee, setShippingFee] = useState(0)
+  const [sellerConfig, setSellerConfig] = useState<import('@/lib/api').SellerConfigDto | null>(null)
 
   useEffect(() => {
     if (user?.id && typeof window !== 'undefined') {
@@ -62,6 +68,51 @@ export default function StorefrontPage() {
       }
     }
   }, [user?.id])
+
+  // Seed cart from wishlist "Add all to cart" action on wishlist page
+  useEffect(() => {
+    if (!user?.id || typeof window === 'undefined' || products.length === 0) return
+    const key = `${WISHLIST_CART_SEED_PREFIX}${user.id}`
+    let raw: string | null = null
+    try {
+      raw = localStorage.getItem(key)
+      if (!raw) return
+      const ids: unknown = JSON.parse(raw)
+      if (!Array.isArray(ids) || ids.length === 0) return
+
+      setCart((prev) => {
+        const quantities = new Map(prev.map((item) => [item.productId, item.quantity]))
+        for (const id of ids as string[]) {
+          const product = products.find((p) => p.id === id)
+          if (!product || (product.quantity ?? 0) <= 0) continue
+          const current = quantities.get(id) ?? 0
+          quantities.set(id, current + 1)
+        }
+        return Array.from(quantities.entries()).map(([productId, quantity]) => ({
+          productId,
+          quantity,
+        }))
+      })
+    } catch {
+      // ignore parse errors
+    } finally {
+      if (raw !== null) {
+        try {
+          localStorage.removeItem(key)
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, [user?.id, products])
+
+  // Load seller config for branding (for owner/staff storefront view).
+  useEffect(() => {
+    if (!user || (user.role !== 'owner' && user.role !== 'staff')) return
+    getMySellerConfig()
+      .then((cfg) => setSellerConfig(cfg))
+      .catch(() => setSellerConfig(null))
+  }, [user?.id, user?.role])
 
   useEffect(() => {
     let cancelled = false
@@ -136,12 +187,28 @@ export default function StorefrontPage() {
     const product = products.find((p) => p.id === item.productId)
     return sum + (product?.price ?? 0) * item.quantity
   }, 0)
+  const grandTotal = cartTotal + shippingFee
+
+  const computeShippingFee = (mode: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP') => {
+    switch (mode) {
+      case 'COURIER':
+        return 300
+      case 'RIDER_MARKETPLACE':
+        return 200
+      case 'CUSTOMER_PICKUP':
+      case 'SELLER_SELF':
+      default:
+        return 0
+    }
+  }
 
   const handleCheckoutClick = () => {
     if (cart.length === 0) return
     setOrderError('')
     setPaymentError('')
     setShippingAddress('')
+    setDeliveryMode('SELLER_SELF')
+    setShippingFee(computeShippingFee('SELLER_SELF'))
     setCheckoutStep('review')
     setCreatedOrder(null)
     setPaymentInitiated(false)
@@ -169,6 +236,8 @@ export default function StorefrontPage() {
       const order = await createOrder({
         items,
         shippingAddress: shippingAddress.trim() || undefined,
+        deliveryMode,
+        shippingFee,
       })
       setCreatedOrder(order)
       setCart([])
@@ -222,8 +291,16 @@ export default function StorefrontPage() {
     <div className={`space-y-4 sm:space-y-6 ${cart.length > 0 ? 'pb-28 safe-area-pb' : ''}`}>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Browse Products</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Discover our handcrafted collection</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
+            {sellerConfig?.brandingEnabled && sellerConfig.brandingName
+              ? sellerConfig.brandingName
+              : 'Browse Products'}
+          </h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            {sellerConfig?.brandingEnabled
+              ? 'White-labeled storefront for this seller, running on the BiasharaHub platform.'
+              : 'Discover our handcrafted collection'}
+          </p>
         </div>
         <Button
           className="bg-primary hover:bg-primary/90 text-primary-foreground relative w-full sm:w-auto"
@@ -440,9 +517,19 @@ export default function StorefrontPage() {
                     })}
                   </ul>
                   <p className="text-sm text-muted-foreground mt-2 flex justify-between">
-                    <span>Total</span>
-                    <span className="font-bold text-foreground">KES {(cartTotal / 1000).toFixed(0)}K</span>
+                  <span>Items total</span>
+                  <span className="font-bold text-foreground">KES {(cartTotal / 1000).toFixed(0)}K</span>
                   </p>
+                <p className="text-sm text-muted-foreground mt-1 flex justify-between">
+                  <span>Shipping fee</span>
+                  <span className="font-bold text-foreground">
+                    {shippingFee > 0 ? `KES ${(shippingFee / 1000).toFixed(1)}K` : 'Free'}
+                  </span>
+                </p>
+                <p className="text-sm font-semibold mt-1 flex justify-between">
+                  <span>Total (incl. shipping)</span>
+                  <span className="font-bold text-foreground">KES {(grandTotal / 1000).toFixed(0)}K</span>
+                </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground">Shipping address (optional)</label>
@@ -453,6 +540,71 @@ export default function StorefrontPage() {
                     className="mt-1"
                   />
                 </div>
+              <div>
+                <p className="text-sm font-medium text-foreground mb-2">Delivery method</p>
+                <div className="space-y-2">
+                  <label className="flex items-center justify-between gap-3 border border-border rounded-md px-3 py-2 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="deliveryMode-dashboard"
+                        value="SELLER_SELF"
+                        checked={deliveryMode === 'SELLER_SELF'}
+                        onChange={() => {
+                          setDeliveryMode('SELLER_SELF')
+                          setShippingFee(computeShippingFee('SELLER_SELF'))
+                        }}
+                      />
+                      <span className="text-sm text-foreground">Seller delivery (standard)</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">Free</span>
+                  </label>
+                  <label className="flex items-center justify-between gap-3 border border-border rounded-md px-3 py-2 cursor-not-allowed opacity-60">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="deliveryMode-dashboard"
+                        value="COURIER"
+                        checked={deliveryMode === 'COURIER'}
+                        onChange={() => {}}
+                        disabled
+                      />
+                      <span className="text-sm text-foreground">Courier delivery (coming soon)</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">From KES 300</span>
+                  </label>
+                  <label className="flex items-center justify-between gap-3 border border-border rounded-md px-3 py-2 cursor-not-allowed opacity-60">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="deliveryMode-dashboard"
+                        value="RIDER_MARKETPLACE"
+                        checked={deliveryMode === 'RIDER_MARKETPLACE'}
+                        onChange={() => {}}
+                        disabled
+                      />
+                      <span className="text-sm text-foreground">Marketplace rider (coming soon)</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">From KES 200</span>
+                  </label>
+                  <label className="flex items-center justify-between gap-3 border border-border rounded-md px-3 py-2 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="deliveryMode-dashboard"
+                        value="CUSTOMER_PICKUP"
+                        checked={deliveryMode === 'CUSTOMER_PICKUP'}
+                        onChange={() => {
+                          setDeliveryMode('CUSTOMER_PICKUP')
+                          setShippingFee(computeShippingFee('CUSTOMER_PICKUP'))
+                        }}
+                      />
+                      <span className="text-sm text-foreground">Customer pickup</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">Free</span>
+                  </label>
+                </div>
+              </div>
                 {orderError && (
                   <p className="text-sm text-destructive">{orderError}</p>
                 )}
