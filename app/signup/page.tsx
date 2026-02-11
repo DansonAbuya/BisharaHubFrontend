@@ -22,6 +22,7 @@ export default function SignUpPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [phone, setPhone] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [code, setCode] = useState('')
@@ -39,7 +40,7 @@ export default function SignUpPage() {
       return
     }
     try {
-      const result = await register(name, email, password)
+      const result = await register(name, email, password, phone.trim() || undefined)
       if (!result.requiresTwoFactor) router.push(returnUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
@@ -64,8 +65,8 @@ export default function SignUpPage() {
   const show2FAStep = !!pendingTwoFactor
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8">
+    <div className="flex-1 min-h-0 overflow-y-auto bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-8 py-4">
         <div className="text-center">
           <Link href="/" className="inline-block mb-4">
             <Image src="/logo-favicon.png" alt="BiasharaHub" width={64} height={64} className="mx-auto" />
@@ -146,6 +147,22 @@ export default function SignUpPage() {
                   required
                   className="h-10"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="phone" className="text-sm font-medium text-foreground">
+                  Phone <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="e.g. 0712345678 or +254712345678"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={isLoading}
+                  className="h-10"
+                />
+                <p className="text-xs text-muted-foreground">For WhatsApp order updates and assistant. You can add it later in Profile.</p>
               </div>
 
               <div className="space-y-2">

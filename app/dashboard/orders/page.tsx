@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Eye, Download, Filter, Loader2 } from 'lucide-react'
+import { Download, Eye, Filter, Loader2, Smartphone } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -15,9 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { listOrders, initiatePayment, type OrderDto } from '@/lib/api'
+import { listOrders, initiatePayment, cancelOrder, getReviewForOrder, createReview, type OrderDto, type OrderReviewDto } from '@/lib/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Smartphone } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+
+import { PageHeader } from '@/components/layout/page-header'
 
 export default function OrdersPage() {
   const { user } = useAuth()
@@ -34,6 +36,15 @@ export default function OrdersPage() {
   const [paymentInitiated, setPaymentInitiated] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [initiatingPayment, setInitiatingPayment] = useState(false)
+  const [summaryConfirmed, setSummaryConfirmed] = useState(false)
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
+  const [orderToCancel, setOrderToCancel] = useState<OrderDto | null>(null)
+  const [selectedOrderReview, setSelectedOrderReview] = useState<OrderReviewDto | null>(null)
+  const [reviewRating, setReviewRating] = useState(0)
+  const [reviewComment, setReviewComment] = useState('')
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewSubmitting, setReviewSubmitting] = useState(false)
+  const [reviewError, setReviewError] = useState<string | null>(null)
 
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
@@ -132,6 +143,25 @@ export default function OrdersPage() {
     setPaymentError('')
   }
 
+  const handleRequestCancelOrder = (order: OrderDto) => {
+    setOrderToCancel(order)
+  }
+
+  const handleConfirmCancelOrder = async () => {
+    if (!orderToCancel) return
+    setCancellingOrderId(orderToCancel.id)
+    setError(null)
+    try {
+      const updated = await cancelOrder(orderToCancel.id)
+      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
+      setOrderToCancel(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to cancel order')
+    } finally {
+      setCancellingOrderId(null)
+    }
+  }
+
   const handleInitiatePayment = async () => {
     if (!payOrder?.id || !mpesaPhone.trim()) {
       setPaymentError('Enter your M-Pesa phone number (e.g. 07XXXXXXXX or 254XXXXXXXXX)')
@@ -153,6 +183,56 @@ export default function OrdersPage() {
     listOrders().then(setOrders).catch(() => {})
   }
 
+  const canLeaveReview = (order: OrderDto | null) => {
+    if (!order || !isCustomerView) return false
+    return order.status === 'delivered' && (order.paymentStatus ?? 'pending') === 'completed'
+  }
+
+  useEffect(() => {
+    if (!isDetailOpen || !selectedOrder || !canLeaveReview(selectedOrder)) {
+      setSelectedOrderReview(null)
+      setReviewRating(0)
+      setReviewComment('')
+      setReviewError(null)
+      return
+    }
+    setReviewLoading(true)
+    setReviewError(null)
+    getReviewForOrder(selectedOrder.id)
+      .then((rev) => {
+        if (rev) {
+          setSelectedOrderReview(rev)
+          setReviewRating(rev.rating)
+          setReviewComment(rev.comment ?? '')
+        } else {
+          setSelectedOrderReview(null)
+          setReviewRating(0)
+          setReviewComment('')
+        }
+      })
+      .catch((e) => {
+        setReviewError(e instanceof Error ? e.message : 'Failed to load review')
+      })
+      .finally(() => setReviewLoading(false))
+  }, [isDetailOpen, selectedOrder])
+
+  const handleSubmitReview = async () => {
+    if (!selectedOrder || reviewRating < 1 || reviewRating > 5) {
+      setReviewError('Please select a rating between 1 and 5.')
+      return
+    }
+    setReviewSubmitting(true)
+    setReviewError(null)
+    try {
+      const rev = await createReview(selectedOrder.id, reviewRating, reviewComment.trim() || undefined)
+      setSelectedOrderReview(rev)
+    } catch (e) {
+      setReviewError(e instanceof Error ? e.message : 'Failed to submit review')
+    } finally {
+      setReviewSubmitting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[200px]">
@@ -161,6 +241,39 @@ export default function OrdersPage() {
     )
   }
 
+  const headerDescription = isCustomerView
+    ? 'Track your purchases and delivery status.'
+    : canActOnBehalf && customerFilter !== 'all'
+      ? `Orders for ${customerList.find((c) => c.id === customerFilter)?.name ?? 'customer'}.`
+      : 'View and manage all customer orders.'
+
+  const headerActions = (
+    <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+      {canActOnBehalf && (
+        <Select value={customerFilter} onValueChange={setCustomerFilter}>
+          <SelectTrigger className="w-full sm:w-[220px] h-9 text-sm">
+            <SelectValue placeholder="All customers" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All customers</SelectItem>
+            {customerList.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {!isCustomerView && (
+        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 w-full sm:w-auto text-sm">
+          <Download className="w-4 h-4" />
+          <span className="hidden sm:inline">Export Report</span>
+          <span className="sm:hidden">Export</span>
+        </Button>
+      )}
+    </div>
+  )
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {error && (
@@ -168,47 +281,13 @@ export default function OrdersPage() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-            {isCustomerView ? 'My Orders' : 'Order Management'}
-          </h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            {isCustomerView
-              ? 'Track your purchases and delivery status'
-              : canActOnBehalf && customerFilter !== 'all'
-                ? `Orders for ${customerList.find((c) => c.id === customerFilter)?.name ?? 'customer'}`
-                : 'View and manage all customer orders'}
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          {canActOnBehalf && (
-            <Select value={customerFilter} onValueChange={setCustomerFilter}>
-              <SelectTrigger className="w-full sm:w-[220px] h-9 text-sm">
-                <SelectValue placeholder="All customers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All customers</SelectItem>
-                {customerList.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {!isCustomerView && (
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 w-full sm:w-auto text-sm">
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Export Report</span>
-              <span className="sm:hidden">Export</span>
-            </Button>
-          )}
-        </div>
-      </div>
 
-      {/* Stats */}
+      <PageHeader
+        title={isCustomerView ? 'My Orders' : 'Order Management'}
+        description={headerDescription}
+        actions={headerActions}
+      />
+
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <Card className="border-border">
           <CardHeader className="pb-2">
@@ -253,7 +332,6 @@ export default function OrdersPage() {
         </Card>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col gap-2 sm:gap-4">
         <Input
           placeholder="Search order ID or customer..."
@@ -284,7 +362,6 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Orders Table/List */}
       <Card className="border-border">
         <CardHeader>
           <CardTitle className="text-foreground">Orders</CardTitle>
@@ -360,20 +437,22 @@ export default function OrdersPage() {
                     className="text-primary hover:bg-primary/10"
                     onClick={() => {
                       setSelectedOrder(order)
+                      setSummaryConfirmed(false)
                       setIsDetailOpen(true)
                     }}
                   >
                     <Eye className="w-4 h-4 mr-2" />
                     View Details
                   </Button>
-                  {canPayOrder(order) && (
+                  {order.status === 'pending' && (order.paymentStatus ?? 'pending') === 'pending' && isCustomerView && (
                     <Button
+                      variant="outline"
                       size="sm"
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                      onClick={() => handleOpenPay(order)}
+                      className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                      disabled={cancellingOrderId === order.id}
+                      onClick={() => handleRequestCancelOrder(order)}
                     >
-                      <Smartphone className="w-4 h-4 mr-2" />
-                      Pay
+                      {cancellingOrderId === order.id ? 'Cancelling…' : 'Cancel order'}
                     </Button>
                   )}
                 </div>
@@ -441,21 +520,47 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              {/* Total */}
-              <div className="pt-3 border-t border-border">
+              {/* Total and confirmation */}
+              <div className="pt-3 border-t border-border space-y-3">
                 <div className="flex justify-between items-center">
                   <p className="text-foreground font-semibold">Total Amount</p>
                   <p className="text-2xl font-bold text-primary">
                     KES {(Number(selectedOrder.total) / 1000).toFixed(0)}K
                   </p>
                 </div>
+                <div className="rounded-md border border-border bg-muted/30 p-3">
+                  <p className="text-sm font-medium text-foreground">Order summary confirmation</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Please review the customer, items, totals and shipping details above. Confirm the
+                    summary to enable payment.
+                  </p>
+                  <Button
+                    variant={summaryConfirmed ? 'outline' : 'default'}
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => setSummaryConfirmed(true)}
+                    disabled={summaryConfirmed}
+                  >
+                    {summaryConfirmed ? 'Summary confirmed' : 'I have reviewed and confirm this summary'}
+                  </Button>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2 pt-4">
-                <Button variant="outline" className="bg-transparent" onClick={() => setIsDetailOpen(false)}>
+                <Button
+                  variant="outline"
+                  className="bg-transparent"
+                  onClick={() => {
+                    setIsDetailOpen(false)
+                    setSummaryConfirmed(false)
+                    setSelectedOrderReview(null)
+                    setReviewRating(0)
+                    setReviewComment('')
+                  }}
+                >
                   Close
                 </Button>
-                {canPayOrder(selectedOrder) && (
+                {canPayOrder(selectedOrder) && summaryConfirmed && (
                   <Button
                     className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     onClick={() => {
@@ -471,6 +576,71 @@ export default function OrdersPage() {
                   Download Invoice
                 </Button>
               </div>
+
+              {/* Review & feedback */}
+              {canLeaveReview(selectedOrder) && (
+                <div className="mt-6 border-t border-border pt-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">
+                      Share your feedback
+                    </p>
+                    {selectedOrderReview && (
+                      <span className="text-xs text-muted-foreground">
+                        You reviewed this order on {formatDate(selectedOrderReview.createdAt)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Rate your experience with this order to help sellers improve and to build trust
+                    for other customers.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setReviewRating(star)}
+                        className={`text-xl ${
+                          reviewRating >= star ? 'text-yellow-500' : 'text-muted-foreground'
+                        }`}
+                        aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                      >
+                        ★
+                      </button>
+                    ))}
+                    {reviewRating > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {reviewRating} / 5
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-foreground mb-1 block">
+                      Comment (optional)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                      placeholder="What went well? What could be improved?"
+                      disabled={reviewSubmitting}
+                    />
+                  </div>
+                  {reviewError && (
+                    <p className="text-xs text-destructive">{reviewError}</p>
+                  )}
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={handleSubmitReview}
+                      disabled={reviewSubmitting || reviewLoading || !!selectedOrderReview && reviewRating === selectedOrderReview.rating && reviewComment === (selectedOrderReview.comment ?? '')}
+                    >
+                      {reviewSubmitting ? 'Submitting…' : selectedOrderReview ? 'Update review' : 'Submit review'}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -552,6 +722,19 @@ export default function OrdersPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={!!orderToCancel}
+        onOpenChange={(open) => {
+          if (!open) setOrderToCancel(null)
+        }}
+        title="Cancel order"
+        description="This will cancel your pending order and restore any reserved inventory. You cannot undo this action."
+        confirmLabel="Yes, cancel order"
+        cancelLabel="Keep order"
+        confirmVariant="destructive"
+        loading={!!cancellingOrderId}
+        onConfirm={handleConfirmCancelOrder}
+      />
     </div>
   )
 }

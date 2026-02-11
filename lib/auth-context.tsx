@@ -9,6 +9,8 @@ export interface AuthUser {
   id: string
   name: string
   email: string
+  /** Phone for WhatsApp chatbot and notifications (e.g. +254712345678). */
+  phone?: string | null
   role: UserRole
   businessId?: string
   businessName?: string
@@ -28,11 +30,13 @@ interface AuthContextType {
   /** Set when backend returns requiresTwoFactor; clear after verifyCode or cancel */
   pendingTwoFactor: PendingTwoFactor | null
   login: (email: string, password: string) => Promise<{ requiresTwoFactor: boolean; user?: AuthUser }>
-  register: (name: string, email: string, password: string) => Promise<{ requiresTwoFactor: boolean }>
+  register: (name: string, email: string, password: string, phone?: string) => Promise<{ requiresTwoFactor: boolean }>
   /** Complete login/register after 2FA code is entered. Returns the authenticated user on success. */
   verifyCode: (email: string, code: string) => Promise<AuthUser | null>
   cancelTwoFactor: () => void
   logout: () => void
+  /** Reload current user from API (e.g. after updating profile/phone). */
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -87,6 +91,7 @@ function toAuthUser(u: api.AuthUser): AuthUser {
     id: u.id,
     name: u.name,
     email: u.email,
+    phone: u.phone,
     role: u.role as UserRole,
     businessId: u.businessId,
     businessName: u.businessName,
@@ -132,12 +137,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const register = async (name: string, email: string, password: string): Promise<{ requiresTwoFactor: boolean }> => {
+  const register = async (name: string, email: string, password: string, phone?: string): Promise<{ requiresTwoFactor: boolean }> => {
     setIsLoading(true)
     setPendingTwoFactor(null)
     try {
       if (USE_API) {
-        const res = await api.register({ name, email, password })
+        const res = await api.register({ name, email, password, phone })
         if (res.requiresTwoFactor) {
           setPendingTwoFactor({ email, user: toAuthUser(res.user) })
           return { requiresTwoFactor: true }
@@ -181,6 +186,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionStorage.removeItem('biashara_refresh_token')
   }
 
+  const refreshUser = async () => {
+    if (!USE_API) return
+    try {
+      const fresh = await api.getCurrentUser()
+      if (fresh) {
+        setUser(toAuthUser(fresh))
+        sessionStorage.setItem('biashara_user', JSON.stringify(fresh))
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   React.useEffect(() => {
     let cancelled = false
     const init = async () => {
@@ -209,7 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isInitialized, isLoading, pendingTwoFactor, login, register, verifyCode, cancelTwoFactor, logout }}>
+    <AuthContext.Provider value={{ user, isInitialized, isLoading, pendingTwoFactor, login, register, verifyCode, cancelTwoFactor, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

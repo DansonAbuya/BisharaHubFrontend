@@ -54,8 +54,8 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
-        <div className="w-full max-w-md space-y-8">
+      <div className="flex-1 min-h-0 overflow-y-auto bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-8 py-4">
           <div className="text-center">
             <Link href="/login" className="inline-block mb-4">
               <Image src="/logo-favicon.png" alt="BiasharaHub" width={64} height={64} className="mx-auto" />
@@ -78,8 +78,8 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8">
+    <div className="flex-1 min-h-0 overflow-y-auto bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-8 py-4">
         <div className="text-center">
           <Link href="/login" className="inline-block mb-4">
             <Image src="/logo-favicon.png" alt="BiasharaHub" width={64} height={64} className="mx-auto" />
@@ -184,7 +184,7 @@ function ResetPasswordForm() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex-1 min-h-0 flex items-center justify-center">
         <Spinner className="w-8 h-8" />
       </div>
     }>

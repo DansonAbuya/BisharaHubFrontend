@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { useNotifications } from '@/lib/notifications-context'
 import { Bell, LogOut, Settings, Menu, User } from 'lucide-react'
 
 interface TopNavBarProps {
@@ -21,17 +22,19 @@ interface TopNavBarProps {
 export function TopNavBar({ onMenuClick }: TopNavBarProps) {
   const { user, logout } = useAuth()
   const router = useRouter()
+  const { unreadCount } = useNotifications()
 
   const handleLogout = () => {
     logout()
     router.push('/login')
   }
 
-  const userInitials = user?.name
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase() || 'U'
+  const userInitials =
+    user?.name
+      .split(' ')
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase() || 'U'
 
   return (
     <header className="border-b border-border bg-card px-3 sm:px-6 py-3 sm:py-3 flex items-center justify-between gap-2 safe-area-pt">
@@ -51,9 +54,22 @@ export function TopNavBar({ onMenuClick }: TopNavBarProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
-        <Button variant="ghost" size="icon" className="relative shrink-0 min-h-[44px] min-w-[44px] sm:h-10 sm:w-10" aria-label="Notifications">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative shrink-0 min-h-[44px] min-w-[44px] sm:h-10 sm:w-10"
+          aria-label="Notifications"
+          onClick={() => router.push('/dashboard/notifications')}
+        >
           <Bell className="w-4 sm:w-5 h-4 sm:h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full" aria-hidden />
+          {unreadCount > 0 && (
+            <span
+              className="absolute top-1.5 right-1.5 min-w-[0.5rem] h-2 px-1 bg-accent text-[10px] text-accent-foreground rounded-full flex items-center justify-center"
+              aria-hidden
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </Button>
 
         <DropdownMenu>

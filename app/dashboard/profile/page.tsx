@@ -2,22 +2,30 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { listOrders, type OrderDto } from '@/lib/api'
+import { listOrders, updateMyProfile, type OrderDto } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Mail, MapPin } from 'lucide-react'
+import { Mail, MapPin, Phone } from 'lucide-react'
 
 export default function ProfilePage() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [nameEdit, setNameEdit] = useState(user?.name ?? '')
+  const [phoneEdit, setPhoneEdit] = useState(user?.phone ?? '')
   const [orders, setOrders] = useState<OrderDto[]>([])
   const [ordersLoading, setOrdersLoading] = useState(true)
   const isCustomer = user?.role === 'customer'
+
+  useEffect(() => {
+    setNameEdit(user?.name ?? '')
+    setPhoneEdit(user?.phone ?? '')
+  }, [user?.name, user?.phone])
 
   useEffect(() => {
     if (!user || !isCustomer) {
@@ -42,10 +50,17 @@ export default function ProfilePage() {
     .join('')
     .toUpperCase() || 'U'
 
-  const handleSave = () => {
-    setSaved(true)
-    setIsEditing(false)
-    setTimeout(() => setSaved(false), 3000)
+  const handleSave = async () => {
+    setSaveError('')
+    try {
+      await updateMyProfile({ name: nameEdit.trim(), phone: phoneEdit.trim() || null })
+      await refreshUser()
+      setSaved(true)
+      setIsEditing(false)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to update profile')
+    }
   }
 
   return (
@@ -72,6 +87,11 @@ export default function ProfilePage() {
           <AlertDescription className="text-primary">
             Profile updated successfully
           </AlertDescription>
+        </Alert>
+      )}
+      {saveError && (
+        <Alert variant="destructive">
+          <AlertDescription>{saveError}</AlertDescription>
         </Alert>
       )}
 
@@ -112,7 +132,8 @@ export default function ProfilePage() {
               <div>
                 <label className="text-sm font-medium text-foreground">Full Name</label>
                 <Input
-                  defaultValue={user?.name}
+                  value={nameEdit}
+                  onChange={(e) => setNameEdit(e.target.value)}
                   className="mt-2 h-10"
                 />
               </div>
@@ -120,10 +141,23 @@ export default function ProfilePage() {
                 <label className="text-sm font-medium text-foreground">Email Address</label>
                 <Input
                   type="email"
-                  defaultValue={user?.email}
+                  value={user?.email ?? ''}
                   disabled
                   className="mt-2 h-10"
                 />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Phone (for WhatsApp)</label>
+                <Input
+                  type="tel"
+                  placeholder="e.g. +254712345678 or 0712345678"
+                  value={phoneEdit}
+                  onChange={(e) => setPhoneEdit(e.target.value)}
+                  className="mt-2 h-10"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Add your WhatsApp number to use our WhatsApp assistant and get order updates.
+                </p>
               </div>
               <div className="flex gap-2 pt-4">
                 <Button
@@ -151,6 +185,11 @@ export default function ProfilePage() {
                 <span className="text-sm font-medium text-foreground w-24">Email</span>
                 <span className="text-foreground">{user?.email}</span>
               </div>
+              <div className="flex items-center gap-3 py-3 border-t border-border">
+                <Phone className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground w-24">Phone</span>
+                <span className="text-foreground">{user?.phone || 'Not set'}</span>
+              </div>
             </>
           )}
         </CardContent>
@@ -172,16 +211,18 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Contact */}
+      {/* Contact / WhatsApp */}
       <Card className="border-border">
         <CardHeader>
-          <CardTitle className="text-foreground">Contact</CardTitle>
-          <CardDescription>Account email</CardDescription>
+          <CardTitle className="text-foreground">Contact & WhatsApp</CardTitle>
+          <CardDescription>
+            Your phone links your account to our WhatsApp assistant. Add it in Personal Information above.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3 py-2">
-            <Mail className="w-4 h-4 text-muted-foreground" />
-            <span className="text-foreground">{user?.email}</span>
+            <Phone className="w-4 h-4 text-muted-foreground" />
+            <span className="text-foreground">{user?.phone || 'No phone set – add one to use WhatsApp'}</span>
           </div>
         </CardContent>
       </Card>

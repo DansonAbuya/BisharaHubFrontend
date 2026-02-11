@@ -88,6 +88,10 @@ export default function ShopPage() {
   const [paymentInitiated, setPaymentInitiated] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [initiatingPayment, setInitiatingPayment] = useState(false)
+  const [deliveryMode, setDeliveryMode] = useState<'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP'>(
+    'SELLER_SELF',
+  )
+  const [shippingFee, setShippingFee] = useState(0)
 
   const shopsByTier = useMemo(() => groupShopsByTier(shops), [shops])
   const selectedShop = useMemo(() => shops.find((s) => s.id === selectedShopId), [shops, selectedShopId])
@@ -211,6 +215,20 @@ export default function ShopPage() {
     const product = products.find((p) => p.id === item.productId)
     return sum + (product?.price ?? 0) * item.quantity
   }, 0)
+  const grandTotal = cartTotal + shippingFee
+
+  const computeShippingFee = (mode: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP') => {
+    switch (mode) {
+      case 'COURIER':
+        return 300
+      case 'RIDER_MARKETPLACE':
+        return 200
+      case 'CUSTOMER_PICKUP':
+      case 'SELLER_SELF':
+      default:
+        return 0
+    }
+  }
 
   const handleCheckoutClick = () => {
     if (!user) {
@@ -221,6 +239,8 @@ export default function ShopPage() {
     setOrderError('')
     setPaymentError('')
     setShippingAddress('')
+    setDeliveryMode('SELLER_SELF')
+    setShippingFee(computeShippingFee('SELLER_SELF'))
     setCheckoutStep('review')
     setCreatedOrder(null)
     setPaymentInitiated(false)
@@ -248,6 +268,8 @@ export default function ShopPage() {
       const order = await createOrder({
         items,
         shippingAddress: shippingAddress.trim() || undefined,
+        deliveryMode,
+        shippingFee,
       })
       setCreatedOrder(order)
       setCart([])
@@ -301,8 +323,8 @@ export default function ShopPage() {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-gradient-to-br from-background via-background to-secondary/20 flex flex-col">
-      <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-10 safe-area-pt">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-gradient-to-br from-background via-background to-secondary/20">
+      <header className="shrink-0 border-b border-border/50 bg-background/80 backdrop-blur-sm z-10 safe-area-pt">
         <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 h-14 min-h-[56px] flex items-center justify-between gap-2">
           <Link href="/" className="flex items-center gap-2 shrink-0 min-h-[44px] items-center">
             <Image src="/logo-favicon.png" alt="BiasharaHub" width={32} height={32} className="sm:w-9 sm:h-9" />
@@ -330,7 +352,7 @@ export default function ShopPage() {
         </div>
       </header>
 
-      <main className={`flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 sm:space-y-8 ${cart.length > 0 ? 'pb-24 sm:pb-6 safe-area-pb' : ''}`}>
+      <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 sm:space-y-8 ${cart.length > 0 ? 'pb-24 sm:pb-6 safe-area-pb' : ''}`}>
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
           <div>
@@ -649,8 +671,18 @@ export default function ShopPage() {
                     })}
                   </ul>
                   <p className="text-sm text-muted-foreground mt-2 flex justify-between">
-                    <span>Total</span>
+                    <span>Items total</span>
                     <span className="font-bold text-foreground">KES {(cartTotal / 1000).toFixed(0)}K</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1 flex justify-between">
+                    <span>Shipping fee</span>
+                    <span className="font-bold text-foreground">
+                      {shippingFee > 0 ? `KES ${(shippingFee / 1000).toFixed(1)}K` : 'Free'}
+                    </span>
+                  </p>
+                  <p className="text-sm font-semibold mt-1 flex justify-between">
+                    <span>Total (incl. shipping)</span>
+                    <span className="font-bold text-foreground">KES {(grandTotal / 1000).toFixed(0)}K</span>
                   </p>
                 </div>
                 <div>
@@ -661,6 +693,71 @@ export default function ShopPage() {
                     onChange={(e) => setShippingAddress(e.target.value)}
                     className="mt-1"
                   />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-2">Delivery method</p>
+                  <div className="space-y-2">
+                    <label className="flex items-center justify-between gap-3 border border-border rounded-md px-3 py-2 cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="deliveryMode"
+                          value="SELLER_SELF"
+                          checked={deliveryMode === 'SELLER_SELF'}
+                          onChange={() => {
+                            setDeliveryMode('SELLER_SELF')
+                            setShippingFee(computeShippingFee('SELLER_SELF'))
+                          }}
+                        />
+                        <span className="text-sm text-foreground">Seller delivery (standard)</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">Free</span>
+                    </label>
+                    <label className="flex items-center justify-between gap-3 border border-border rounded-md px-3 py-2 cursor-not-allowed opacity-60">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="deliveryMode"
+                          value="COURIER"
+                          checked={deliveryMode === 'COURIER'}
+                          onChange={() => {}}
+                          disabled
+                        />
+                        <span className="text-sm text-foreground">Courier delivery (coming soon)</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">From KES 300</span>
+                    </label>
+                    <label className="flex items-center justify-between gap-3 border border-border rounded-md px-3 py-2 cursor-not-allowed opacity-60">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="deliveryMode"
+                          value="RIDER_MARKETPLACE"
+                          checked={deliveryMode === 'RIDER_MARKETPLACE'}
+                          onChange={() => {}}
+                          disabled
+                        />
+                        <span className="text-sm text-foreground">Marketplace rider (coming soon)</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">From KES 200</span>
+                    </label>
+                    <label className="flex items-center justify-between gap-3 border border-border rounded-md px-3 py-2 cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="deliveryMode"
+                          value="CUSTOMER_PICKUP"
+                          checked={deliveryMode === 'CUSTOMER_PICKUP'}
+                          onChange={() => {
+                            setDeliveryMode('CUSTOMER_PICKUP')
+                            setShippingFee(computeShippingFee('CUSTOMER_PICKUP'))
+                          }}
+                        />
+                        <span className="text-sm text-foreground">Customer pickup</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">Free</span>
+                    </label>
+                  </div>
                 </div>
                 {orderError && (
                   <p className="text-sm text-destructive">{orderError}</p>

@@ -2,6 +2,7 @@
   "name": "biasharahub",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "build": "next build",
     "dev": "node server-http.js",

@@ -87,14 +87,14 @@ export default function DashboardLayout({
 
   if (!isInitialized || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex-1 min-h-0 flex items-center justify-center bg-background">
         <Spinner className="w-8 h-8 text-primary" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen max-h-[100dvh] bg-background">
+    <div className="flex-1 min-h-0 flex flex-col lg:flex-row bg-background overflow-hidden">
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 lg:hidden z-40"
@@ -102,15 +102,17 @@ export default function DashboardLayout({
           aria-hidden
         />
       )}
-      <div className={`fixed lg:static inset-y-0 left-0 w-64 h-full lg:h-auto z-50 transform transition-transform duration-200 ease-out lg:translate-x-0 ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <div
+        className={`fixed lg:static inset-y-0 left-0 w-64 h-full lg:h-auto z-50 transform transition-transform duration-200 ease-out lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         <Sidebar onClose={() => setSidebarOpen(false)} />
       </div>
       <div className="flex flex-col flex-1 min-w-0">
         <TopNavBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         <main className="flex-1 overflow-auto min-h-0">
-          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
             <DashboardBreadcrumbs />
             {children}
           </div>

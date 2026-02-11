@@ -22,17 +22,9 @@ interface StaffMember {
   status: 'active' | 'inactive'
 }
 
-const MOCK_STAFF: StaffMember[] = [
-  { id: 'staff-1', name: 'Kofi Mensah', email: 'kofi@biashara.com', phone: '+233 20 123 4567', role: 'staff', joinDate: new Date('2025-06-15'), status: 'active' },
-  { id: 'staff-2', name: 'Grace Asante', email: 'grace@biashara.com', phone: '+233 20 987 6543', role: 'staff', joinDate: new Date('2025-08-01'), status: 'active' },
-  { id: 'staff-3', name: 'Benjamin Owusu', email: 'benjamin@biashara.com', phone: '+233 20 555 1234', role: 'staff', joinDate: new Date('2025-09-10'), status: 'active' },
-]
-
-const USE_API = !!process.env.NEXT_PUBLIC_API_URL
-
 export default function StaffManagementPage() {
   const { user } = useAuth()
-  const [staff, setStaff] = useState<StaffMember[]>(MOCK_STAFF)
+  const [staff, setStaff] = useState<StaffMember[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [addName, setAddName] = useState('')
@@ -40,26 +32,28 @@ export default function StaffManagementPage() {
   const [addError, setAddError] = useState('')
   const [addSuccess, setAddSuccess] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [loadingStaff, setLoadingStaff] = useState(USE_API)
+  const [loadingStaff, setLoadingStaff] = useState(true)
 
   useEffect(() => {
-    if (USE_API && (user?.role === 'owner' || user?.role === 'super_admin')) {
-      listStaff()
-        .then((users) =>
-          setStaff(
-            users.map((u) => ({
-              id: u.id,
-              name: u.name,
-              email: u.email,
-              role: u.role,
-              joinDate: new Date(),
-              status: 'active' as const,
-            })),
-          ),
-        )
-        .catch(() => setStaff([]))
-        .finally(() => setLoadingStaff(false))
+    if (!(user?.role === 'owner' || user?.role === 'super_admin')) {
+      setLoadingStaff(false)
+      return
     }
+    listStaff()
+      .then((users) =>
+        setStaff(
+          users.map((u) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            joinDate: new Date(),
+            status: 'active' as const,
+          })),
+        ),
+      )
+      .catch(() => setStaff([]))
+      .finally(() => setLoadingStaff(false))
   }, [user?.role])
 
   const canManageStaff = user?.role === 'owner' || user?.role === 'super_admin'

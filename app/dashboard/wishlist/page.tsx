@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,38 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { listProducts, type ProductDto } from '@/lib/api'
 import { Heart, ShoppingCart, Share2, Loader2 } from 'lucide-react'
 import Image from 'next/image'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-
 const WISHLIST_STORAGE_KEY = 'biashara_wishlist'
 
-const MOCK_CUSTOMERS = [
-  { id: 'cust-1', name: 'Jane Mwangi' },
-  { id: 'cust-2', name: 'Ahmed Hassan' },
-  { id: 'cust-3', name: 'Sarah Okonkwo' },
-  { id: 'cust-4', name: 'Amina Patel' },
-]
-
-// Mock wishlists per customer (for owner/staff "on behalf" view)
-const MOCK_CUSTOMER_WISHLISTS: Record<string, string[]> = {
-  'cust-1': ['prod-1', 'prod-3'],
-  'cust-2': ['prod-2', 'prod-4'],
-  'cust-3': ['prod-1', 'prod-5'],
-  'cust-4': ['prod-3', 'prod-4', 'prod-5'],
-}
-
 export default function WishlistPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const [products, setProducts] = useState<ProductDto[]>([])
   const [loading, setLoading] = useState(true)
   const isCustomerView = user?.role === 'customer'
-  const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(canActOnBehalf ? 'cust-1' : '')
   const [ownWishlist, setOwnWishlist] = useState<string[]>([])
 
   useEffect(() => {
@@ -64,31 +41,36 @@ export default function WishlistPage() {
     }
   }, [user?.id, isCustomerView])
 
-  const wishlist = isCustomerView || !canActOnBehalf
-    ? ownWishlist
-    : (MOCK_CUSTOMER_WISHLISTS[selectedCustomerId] ?? [])
+  const wishlist = ownWishlist
   const wishlistItems = products.filter((p) => wishlist.includes(p.id))
 
   const removeFromWishlist = (productId: string) => {
-    if (isCustomerView || !canActOnBehalf) {
-      setOwnWishlist((prev) => {
-        const next = prev.filter((id) => id !== productId)
-        if (user?.id && typeof window !== 'undefined') {
-          try {
-            localStorage.setItem(`${WISHLIST_STORAGE_KEY}_${user.id}`, JSON.stringify(next))
-          } catch {
-            // ignore
-          }
+    setOwnWishlist((prev) => {
+      const next = prev.filter((id) => id !== productId)
+      if (user?.id && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`${WISHLIST_STORAGE_KEY}_${user.id}`, JSON.stringify(next))
+        } catch {
+          // ignore
         }
-        return next
-      })
-    } else {
-      // On-behalf view: mock only; in real app would call API
-      setSelectedCustomerId((id) => id)
-    }
+      }
+      return next
+    })
   }
 
   const totalValue = wishlistItems.reduce((sum, p) => sum + p.price, 0)
+
+  const handleAddAllToCart = () => {
+    if (!user?.id || wishlistItems.length === 0 || typeof window === 'undefined') return
+    try {
+      const key = `${WISHLIST_STORAGE_KEY}_cart_seed_${user.id}`
+      const ids = wishlistItems.map((p) => p.id)
+      localStorage.setItem(key, JSON.stringify(ids))
+    } catch {
+      // ignore storage errors; user can still manually add
+    }
+    router.push('/dashboard/storefront')
+  }
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -96,28 +78,17 @@ export default function WishlistPage() {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {isCustomerView ? 'My Wishlist' : canActOnBehalf ? 'Wishlist (on behalf of customer)' : 'My Wishlist'}
+            My Wishlist
           </h1>
           <p className="text-muted-foreground">
-            {isCustomerView ? 'Save your favorite items for later' : 'View or manage a customer\'s saved items'}
+            Save your favorite items for later
           </p>
         </div>
-        {canActOnBehalf && (
-          <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-            <SelectTrigger className="w-full sm:w-[220px] h-10 text-sm">
-              <SelectValue placeholder="Select customer" />
-            </SelectTrigger>
-            <SelectContent>
-              {MOCK_CUSTOMERS.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        {(isCustomerView || !canActOnBehalf) && wishlist.length > 0 && (
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+        {wishlist.length > 0 && (
+          <Button
+            className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+            onClick={handleAddAllToCart}
+          >
             <ShoppingCart className="w-4 h-4" />
             Add All to Cart
           </Button>

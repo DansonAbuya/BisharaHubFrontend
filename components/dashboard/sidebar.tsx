@@ -64,6 +64,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Onboard Business', icon: Shield, href: '/dashboard/admin/owners' },
       { label: 'Verify Business', icon: Shield, href: '/dashboard/admin/pending-verification' },
       { label: 'Assistant Admins', icon: Users, href: '/dashboard/admin/assistant-admins' },
+      { label: 'Seller Pricing & Branding', icon: Settings, href: '/dashboard/admin/seller-config' },
       { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
       { label: 'Wishlist', icon: Package, href: '/dashboard/wishlist' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' },
@@ -78,37 +79,76 @@ export function Sidebar({ onClose }: SidebarProps) {
 
   const items = user ? (menuItems[user.role as keyof typeof menuItems] ?? menuItems.customer) : []
 
+  const operationsItems = items.filter((item) =>
+    ['/dashboard', '/dashboard/orders', '/dashboard/products', '/dashboard/shipments'].includes(item.href),
+  )
+  const analyticsItems = items.filter((item) => ['/dashboard/analytics', '/dashboard/staff'].includes(item.href))
+  const platformItems = items.filter((item) =>
+    item.href.startsWith('/dashboard/admin') || ['/dashboard/verification'].includes(item.href),
+  )
+  const storefrontItems = items.filter((item) =>
+    ['/dashboard/storefront', '/dashboard/wishlist'].includes(item.href),
+  )
+  const accountItems = items.filter((item) =>
+    ['/dashboard/profile', '/dashboard/settings'].includes(item.href),
+  )
+
+  const renderSection = (label: string, sectionItems: typeof items) => {
+    if (sectionItems.length === 0) return null
+    return (
+      <div className="space-y-1">
+        <p className="px-3 text-[0.65rem] font-semibold uppercase tracking-wide text-primary-foreground/70">
+          {label}
+        </p>
+        <div className="space-y-1">
+          {sectionItems.map((item) => {
+            const isActive =
+              pathname === item.href || (item.href === '/dashboard' && pathname === '/dashboard')
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => onClose?.()}
+                className={cn(
+                  'flex items-center gap-3 px-4 min-h-[40px] rounded-md text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary-foreground text-primary'
+                    : 'text-primary-foreground/90 hover:bg-primary/80 active:bg-primary/70',
+                )}
+              >
+                <item.icon className="w-5 h-5 shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <aside className="w-64 h-full bg-primary text-primary-foreground border-r border-sidebar-border shadow-sm flex flex-col">
       {/* Logo */}
-      <div className="p-6 border-b border-primary/30">
+      <div className="p-5 border-b border-primary/30">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <Image src="/logo-favicon.png" alt="BiasharaHub" width={32} height={32} className="rounded-lg shrink-0" />
+          <Image
+            src="/logo-favicon.png"
+            alt="BiasharaHub"
+            width={32}
+            height={32}
+            className="rounded-lg shrink-0"
+          />
           <span className="font-bold text-lg">BiasharaHub</span>
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-6 space-y-2">
-        {items.map((item) => {
-          const isActive = pathname === item.href || (item.href === '/dashboard' && pathname === '/dashboard')
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => onClose?.()}
-              className={cn(
-                'flex items-center gap-3 px-4 min-h-[44px] rounded-lg text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary-foreground text-primary'
-                  : 'text-primary-foreground hover:bg-primary/80 active:bg-primary/70',
-              )}
-            >
-              <item.icon className="w-5 h-5 shrink-0" />
-              <span className="truncate">{item.label}</span>
-            </Link>
-          )
-        })}
+      <nav className="flex-1 px-3 py-5 space-y-4 overflow-y-auto">
+        {renderSection('Operations', operationsItems)}
+        {renderSection('Analytics & Team', analyticsItems)}
+        {renderSection('Platform', platformItems)}
+        {renderSection('Storefront', storefrontItems)}
+        {renderSection('Account', accountItems)}
       </nav>
 
       {/* Footer */}
