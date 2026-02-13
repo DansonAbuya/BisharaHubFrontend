@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { listOrders, initiatePayment, cancelOrder, getReviewForOrder, createReview, type OrderDto, type OrderReviewDto } from '@/lib/api'
+import { listOrders, initiatePayment, cancelOrder, getReviewForOrder, createReview, createDispute, type OrderDto, type OrderReviewDto } from '@/lib/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
@@ -45,6 +45,12 @@ export default function OrdersPage() {
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [orderForDispute, setOrderForDispute] = useState<OrderDto | null>(null)
+  const [disputeType, setDisputeType] = useState('other')
+  const [disputeDescription, setDisputeDescription] = useState('')
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false)
+  const [disputeError, setDisputeError] = useState<string | null>(null)
+  const [disputeSuccess, setDisputeSuccess] = useState(false)
 
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
@@ -444,6 +450,21 @@ export default function OrdersPage() {
                     <Eye className="w-4 h-4 mr-2" />
                     View Details
                   </Button>
+                  {isCustomerView && order.customerId === user?.id && order.status !== 'cancelled' && order.status !== 'pending' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setOrderForDispute(order)
+                        setDisputeDescription('')
+                        setDisputeType('other')
+                        setDisputeError(null)
+                        setDisputeSuccess(false)
+                      }}
+                    >
+                      Report problem
+                    </Button>
+                  )}
                   {order.status === 'pending' && (order.paymentStatus ?? 'pending') === 'pending' && isCustomerView && (
                     <Button
                       variant="outline"
@@ -735,6 +756,83 @@ export default function OrdersPage() {
         loading={!!cancellingOrderId}
         onConfirm={handleConfirmCancelOrder}
       />
+
+      {/* Report problem / Open dispute */}
+      <Dialog open={!!orderForDispute} onOpenChange={(open) => { if (!open) setOrderForDispute(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Report a problem</DialogTitle>
+            <DialogDescription>
+              Open a dispute for this order. Support will review and may contact the seller. You can add delivery proof (e.g. photo URL) if relevant.
+            </DialogDescription>
+          </DialogHeader>
+          {orderForDispute && (
+            <form
+              className="space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault()
+                setDisputeError(null)
+                setDisputeSubmitting(true)
+                try {
+                  await createDispute({
+                    orderId: orderForDispute.id,
+                    disputeType: disputeType,
+                    description: disputeDescription.trim() || undefined,
+                  })
+                  setDisputeSuccess(true)
+                  setTimeout(() => { setOrderForDispute(null); setDisputeSuccess(false) }, 2000)
+                } catch (err) {
+                  setDisputeError(err instanceof Error ? err.message : 'Failed to submit')
+                } finally {
+                  setDisputeSubmitting(false)
+                }
+              }}
+            >
+              {disputeSuccess && (
+                <Alert className="bg-primary/10 border-primary/30">
+                  <AlertDescription>Dispute submitted. Support will review.</AlertDescription>
+                </Alert>
+              )}
+              {disputeError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{disputeError}</AlertDescription>
+                </Alert>
+              )}
+              <div>
+                <label className="text-sm font-medium text-foreground">Problem type</label>
+                <Select value={disputeType} onValueChange={setDisputeType}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="late_shipping">Late shipping</SelectItem>
+                    <SelectItem value="wrong_item">Wrong item</SelectItem>
+                    <SelectItem value="fraud">Fraud</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Description</label>
+                <Input
+                  className="mt-1"
+                  placeholder="Describe what went wrong..."
+                  value={disputeDescription}
+                  onChange={(e) => setDisputeDescription(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => setOrderForDispute(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={disputeSubmitting}>
+                  {disputeSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : 'Submit dispute'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

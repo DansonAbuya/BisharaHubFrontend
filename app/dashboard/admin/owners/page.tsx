@@ -20,6 +20,8 @@ export default function AdminOwnersPage() {
   const [email, setEmail] = useState('')
   const [businessName, setBusinessName] = useState('')
   const [applyingForTier, setApplyingForTier] = useState<TierId | ''>('')
+  const [payoutMethod, setPayoutMethod] = useState<'MPESA' | 'BANK_TRANSFER'>('MPESA')
+  const [payoutDestination, setPayoutDestination] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -51,6 +53,10 @@ export default function AdminOwnersPage() {
       setError('Please select which tier the business is applying for.')
       return
     }
+    if (!payoutDestination.trim()) {
+      setError('Payout destination is required (e.g. M-Pesa number or bank account).')
+      return
+    }
     setIsSubmitting(true)
     try {
       await addOwner({
@@ -58,6 +64,8 @@ export default function AdminOwnersPage() {
         email,
         businessName,
         applyingForTier,
+        payoutMethod,
+        payoutDestination: payoutDestination.trim(),
       })
       setSuccess(
         `Business onboarded (applying for ${TIER_LABELS[applyingForTier]}). The business admin will need to submit the required documents for that tier. A temporary password has been sent to the business email.`
@@ -66,6 +74,8 @@ export default function AdminOwnersPage() {
       setEmail('')
       setBusinessName('')
       setApplyingForTier('')
+      setPayoutMethod('MPESA')
+      setPayoutDestination('')
       setIsDialogOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to onboard business')
@@ -92,6 +102,8 @@ export default function AdminOwnersPage() {
             setEmail('')
             setBusinessName('')
             setApplyingForTier('')
+            setPayoutMethod('MPESA')
+            setPayoutDestination('')
           }}
           className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
         >
@@ -125,7 +137,7 @@ export default function AdminOwnersPage() {
           <DialogHeader>
             <DialogTitle className="text-foreground">Onboard Business</DialogTitle>
             <DialogDescription>
-              Enter the business admin name, business email, and business name. Select the tier the business is applying for — this determines which documents the admin must submit for verification (Tier 1: ID/passport; Tier 2: business reg + location; Tier 3: KRA PIN + compliance). A temporary password will be sent to the business email.
+              Enter the business admin name, email, business name, and tier. Add the seller&apos;s payout details — these are used to automatically transfer their earnings to their account when orders are delivered (M-Pesa or bank). A temporary password will be sent to the business email.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddOwner} className="space-y-4">
@@ -184,6 +196,36 @@ export default function AdminOwnersPage() {
               <p className="text-xs text-muted-foreground mt-1">
                 Tier 1: ID/passport. Tier 2: business reg + location. Tier 3: KRA PIN + compliance.
               </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground">
+                Payout method <span className="text-destructive">*</span>
+              </label>
+              <select
+                value={payoutMethod}
+                onChange={(e) => setPayoutMethod(e.target.value as 'MPESA' | 'BANK_TRANSFER')}
+                className="mt-1 h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground"
+                required
+                aria-required="true"
+              >
+                <option value="MPESA">M-Pesa</option>
+                <option value="BANK_TRANSFER">Bank transfer</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Earnings are sent here automatically when orders are delivered.
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground">
+                Payout destination <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder={payoutMethod === 'MPESA' ? 'e.g. 254712345678 or 0712345678' : 'Bank name and account number'}
+                value={payoutDestination}
+                onChange={(e) => setPayoutDestination(e.target.value)}
+                className="mt-1 h-10"
+                required
+              />
             </div>
             <div className="flex gap-2 pt-2">
               <Button

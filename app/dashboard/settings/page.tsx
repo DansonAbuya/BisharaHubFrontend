@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Bell, Eye, EyeOff, Lock, Mail, Smartphone, ShieldCheck } from 'lucide-react'
+import { Bell, Eye, EyeOff, Lock, Mail, Smartphone, ShieldCheck, Wallet } from 'lucide-react'
 import * as api from '@/lib/api'
 import { Spinner } from '@/components/ui/spinner'
+import { useEffect } from 'react'
 
 const ROLES_WITH_MANDATORY_2FA = ['customer', 'staff', 'assistant_admin']
+const ROLES_WITH_WALLET = ['owner', 'staff', 'super_admin', 'assistant_admin']
 
 export default function SettingsPage() {
   const { user, logout } = useAuth()
@@ -29,8 +31,16 @@ export default function SettingsPage() {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
   const [twoFactorLoading, setTwoFactorLoading] = useState(false)
   const [twoFactorError, setTwoFactorError] = useState('')
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
+  const [payoutDest, setPayoutDest] = useState<{ method: string | null; destinationMasked: string | null } | null>(null)
+  const [payoutMethod, setPayoutMethod] = useState<'MPESA' | 'BANK_TRANSFER'>('MPESA')
+  const [payoutDestination, setPayoutDestination] = useState('')
+  const [payoutSaving, setPayoutSaving] = useState(false)
+  const [payoutError, setPayoutError] = useState('')
+  const [payoutSuccess, setPayoutSuccess] = useState(false)
 
   const canToggle2FA = user && !ROLES_WITH_MANDATORY_2FA.includes(user.role)
+  const canAccessWallet = user && ROLES_WITH_WALLET.includes(user.role)
   const twoFAMandatory = user && ROLES_WITH_MANDATORY_2FA.includes(user.role)
 
   const handleSave = () => {
@@ -77,6 +87,31 @@ export default function SettingsPage() {
       setTwoFactorError(err instanceof Error ? err.message : 'Failed to update 2FA')
     } finally {
       setTwoFactorLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!canAccessWallet) return
+    api.getWalletBalance().then((d) => setWalletBalance(d.balance)).catch(() => setWalletBalance(null))
+    api.getPayoutDestination().then((d) => setPayoutDest(d)).catch(() => setPayoutDest(null))
+  }, [canAccessWallet])
+
+  const handleSavePayoutDestination = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!payoutDestination.trim()) return
+    setPayoutError('')
+    setPayoutSuccess(false)
+    setPayoutSaving(true)
+    try {
+      await api.setPayoutDestination(payoutMethod, payoutDestination.trim())
+      setPayoutSuccess(true)
+      setPayoutDestination('')
+      api.getPayoutDestination().then((d) => setPayoutDest(d))
+      setTimeout(() => setPayoutSuccess(false), 3000)
+    } catch (err) {
+      setPayoutError(err instanceof Error ? err.message : 'Failed to update payout destination')
+    } finally {
+      setPayoutSaving(false)
     }
   }
 
@@ -134,6 +169,72 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Wallet & Payout (owner/staff/admin) */}
+      {canAccessWallet && (
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <Wallet className="w-5 h-5" />
+              Wallet & Payout
+            </CardTitle>
+            <CardDescription>
+              Your earnings are sent to the payout destination below when orders are delivered. You can update it here.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {walletBalance !== null && (
+              <div className="p-3 rounded-lg bg-muted/50">
+                <p className="text-sm text-muted-foreground">Available balance</p>
+                <p className="text-2xl font-semibold text-foreground">KES {walletBalance.toLocaleString('en-KE', { minimumFractionDigits: 2 })}</p>
+              </div>
+            )}
+            {payoutDest && (payoutDest.method != null || payoutDest.destinationMasked != null) && (
+              <div>
+                <p className="text-sm font-medium text-foreground">Current payout destination</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {payoutDest.method ?? '—'} {payoutDest.destinationMasked ? `• ${payoutDest.destinationMasked}` : ''}
+                </p>
+              </div>
+            )}
+            {payoutSuccess && (
+              <Alert className="bg-primary/10 border-primary/30">
+                <AlertDescription className="text-primary">Payout destination updated.</AlertDescription>
+              </Alert>
+            )}
+            {payoutError && (
+              <Alert variant="destructive">
+                <AlertDescription>{payoutError}</AlertDescription>
+              </Alert>
+            )}
+            <form onSubmit={handleSavePayoutDestination} className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-foreground">Payout method</label>
+                <select
+                  value={payoutMethod}
+                  onChange={(e) => setPayoutMethod(e.target.value as 'MPESA' | 'BANK_TRANSFER')}
+                  className="mt-2 h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground"
+                >
+                  <option value="MPESA">M-Pesa</option>
+                  <option value="BANK_TRANSFER">Bank transfer</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Payout destination</label>
+                <Input
+                  placeholder={payoutMethod === 'MPESA' ? 'e.g. 254712345678 or 0712345678' : 'Bank name and account number'}
+                  value={payoutDestination}
+                  onChange={(e) => setPayoutDestination(e.target.value)}
+                  className="mt-2 h-10"
+                />
+              </div>
+              <Button type="submit" disabled={payoutSaving || !payoutDestination.trim()} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                {payoutSaving ? <><Spinner className="w-4 h-4 mr-2" /> Saving...</> : 'Update payout destination'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Security */}
       <Card className="border-border">

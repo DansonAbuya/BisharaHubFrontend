@@ -32,6 +32,7 @@ const PATH_LABELS: Record<string, string> = {
   owners: 'Onboard Business',
   'pending-verification': 'Verify Business',
   'assistant-admins': 'Assistant Admins',
+  disputes: 'Disputes',
 }
 
 function DashboardBreadcrumbs() {

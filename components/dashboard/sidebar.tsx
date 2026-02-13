@@ -63,8 +63,10 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Staff', icon: Users, href: '/dashboard/staff' },
       { label: 'Onboard Business', icon: Shield, href: '/dashboard/admin/owners' },
       { label: 'Verify Business', icon: Shield, href: '/dashboard/admin/pending-verification' },
+      { label: 'Disputes', icon: FileCheck, href: '/dashboard/admin/disputes' },
       { label: 'Assistant Admins', icon: Users, href: '/dashboard/admin/assistant-admins' },
       { label: 'Seller Pricing & Branding', icon: Settings, href: '/dashboard/admin/seller-config' },
+      { label: 'Courier Services', icon: Truck, href: '/dashboard/admin/courier-services' },
       { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
       { label: 'Wishlist', icon: Package, href: '/dashboard/wishlist' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' },
@@ -73,6 +75,8 @@ export function Sidebar({ onClose }: SidebarProps) {
     assistant_admin: [
       { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Verify Business', icon: Shield, href: '/dashboard/admin/pending-verification' },
+      { label: 'Disputes', icon: FileCheck, href: '/dashboard/admin/disputes' },
+      { label: 'Courier Services', icon: Truck, href: '/dashboard/admin/courier-services' },
       { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
     ],
   }

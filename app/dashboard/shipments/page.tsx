@@ -11,7 +11,7 @@ import { MapPin, Package, Truck, CheckCircle } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
-import { listOrders, listShipments, verifyShipmentOtp, type OrderDto, type ShipmentDto } from '@/lib/api'
+import { listOrders, listShipments, listCourierServices, verifyShipmentOtp, createShipmentWithProvider, getShipmentTracking, type OrderDto, type ShipmentDto, type CourierServiceDto, type TrackingInfoDto } from '@/lib/api'
 
 function formatDate(value?: string | null): string {
   if (!value) return '—'
@@ -50,23 +50,43 @@ export default function ShipmentsPage() {
   const [otpValues, setOtpValues] = useState<Record<string, string>>({})
   const [verifyingId, setVerifyingId] = useState<string | null>(null)
   const [otpError, setOtpError] = useState<string | null>(null)
+  const [courierServices, setCourierServices] = useState<CourierServiceDto[]>([])
+  const [createWithProviderShipmentId, setCreateWithProviderShipmentId] = useState<string | null>(null)
+  const [createWithProviderCode, setCreateWithProviderCode] = useState('')
+  const [createWithProviderLoading, setCreateWithProviderLoading] = useState(false)
+  const [createWithProviderError, setCreateWithProviderError] = useState<string | null>(null)
+  const [trackingByShipmentId, setTrackingByShipmentId] = useState<Record<string, TrackingInfoDto>>({})
+  const [trackingLoadingId, setTrackingLoadingId] = useState<string | null>(null)
 
   const isCustomerView = user?.role === 'customer'
+  const canCreateWithProvider = !isCustomerView && (user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin' || user?.role === 'assistant_admin')
+  const integratedCouriers = courierServices.filter((c) => c.providerType && c.providerType !== 'MANUAL')
 
   useEffect(() => {
     if (!user) return
     setLoading(true)
     setError(null)
-    Promise.all([listShipments(), listOrders()])
-      .then(([s, o]) => {
+    Promise.all([listShipments(), listOrders(), listCourierServices().catch(() => [])])
+      .then(([s, o, couriers]) => {
         setShipments(s)
         setOrders(o)
+        setCourierServices(couriers)
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Failed to load shipments')
       })
       .finally(() => setLoading(false))
   }, [user])
+
+  const getTrackingUrl = (carrier: string | null | undefined, trackingNumber: string | null | undefined): string | null => {
+    if (!carrier || !trackingNumber?.trim()) return null
+    const car = carrier.trim().toLowerCase()
+    const courier = courierServices.find(
+      (c) => (c.name || '').toLowerCase() === car || (c.code || '').toLowerCase() === car
+    )
+    if (!courier?.trackingUrlTemplate) return null
+    return courier.trackingUrlTemplate.replace('{trackingNumber}', trackingNumber.trim())
+  }
 
   const ordersById = useMemo(() => {
     const map = new Map<string, OrderDto>()
@@ -131,6 +151,33 @@ export default function ShipmentsPage() {
       setOtpError(e instanceof Error ? e.message : 'Invalid or expired delivery code')
     } finally {
       setVerifyingId(null)
+    }
+  }
+
+  const handleCreateWithProvider = async (shipmentId: string) => {
+    if (!createWithProviderCode.trim()) return
+    setCreateWithProviderLoading(true)
+    setCreateWithProviderError(null)
+    try {
+      await createShipmentWithProvider(shipmentId, createWithProviderCode.trim())
+      const [updatedList] = await Promise.all([listShipments()])
+      setShipments(updatedList)
+      setCreateWithProviderShipmentId(null)
+      setCreateWithProviderCode('')
+    } catch (e) {
+      setCreateWithProviderError(e instanceof Error ? e.message : 'Failed to create with provider')
+    } finally {
+      setCreateWithProviderLoading(false)
+    }
+  }
+
+  const handleLoadTracking = async (shipmentId: string) => {
+    setTrackingLoadingId(shipmentId)
+    try {
+      const info = await getShipmentTracking(shipmentId)
+      setTrackingByShipmentId((prev) => ({ ...prev, [shipmentId]: info }))
+    } finally {
+      setTrackingLoadingId(null)
     }
   }
 
@@ -332,6 +379,19 @@ export default function ShipmentsPage() {
                             <p className="text-xs text-muted-foreground">Tracking Number</p>
                             <p className="font-semibold text-foreground text-sm">
                               {shipment.trackingNumber || '—'}
+                              {shipment.deliveryMode === 'COURIER' && shipment.trackingNumber && (() => {
+                                const trackUrl = getTrackingUrl(shipment.carrier, shipment.trackingNumber)
+                                return trackUrl ? (
+                                  <a
+                                    href={trackUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="ml-2 text-primary hover:underline text-xs"
+                                  >
+                                    Track
+                                  </a>
+                                ) : null
+                              })()}
                             </p>
                           </div>
                           <div>
@@ -347,6 +407,94 @@ export default function ShipmentsPage() {
                             </p>
                           </div>
                         </div>
+
+                        {/* Create with integrated provider (owner/staff/admin, COURIER, no tracking yet) */}
+                        {canCreateWithProvider &&
+                          shipment.deliveryMode === 'COURIER' &&
+                          !shipment.trackingNumber &&
+                          integratedCouriers.length > 0 && (
+                            <div className="mt-3 py-3 border-t border-border space-y-2">
+                              <p className="text-sm font-medium text-foreground">Create with courier provider</p>
+                              <div className="flex flex-wrap gap-2 items-center">
+                                <select
+                                  value={createWithProviderShipmentId === shipment.id ? createWithProviderCode : ''}
+                                  onChange={(e) => {
+                                    setCreateWithProviderShipmentId(shipment.id)
+                                    setCreateWithProviderCode(e.target.value)
+                                  }}
+                                  className="h-9 px-3 rounded-md border border-input bg-background text-sm"
+                                >
+                                  <option value="">Select provider</option>
+                                  {integratedCouriers.map((c) => (
+                                    <option key={c.courierId} value={c.code}>
+                                      {c.name} ({c.providerType})
+                                    </option>
+                                  ))}
+                                </select>
+                                <Button
+                                  size="sm"
+                                  disabled={
+                                    createWithProviderLoading ||
+                                    (createWithProviderShipmentId === shipment.id && !createWithProviderCode.trim())
+                                  }
+                                  onClick={() => handleCreateWithProvider(shipment.id)}
+                                >
+                                  {createWithProviderLoading && createWithProviderShipmentId === shipment.id
+                                    ? 'Creating…'
+                                    : 'Create shipment'}
+                                </Button>
+                              </div>
+                              {createWithProviderError && createWithProviderShipmentId === shipment.id && (
+                                <p className="text-xs text-destructive">{createWithProviderError}</p>
+                              )}
+                            </div>
+                          )}
+
+                        {/* API tracking (when integrated provider returns events) */}
+                        {shipment.deliveryMode === 'COURIER' &&
+                          shipment.trackingNumber &&
+                          (trackingByShipmentId[shipment.id]?.events?.length || trackingLoadingId === shipment.id) && (
+                            <div className="mt-3 py-3 border-t border-border space-y-2">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-foreground">Provider tracking</p>
+                                {!trackingByShipmentId[shipment.id]?.events?.length && trackingLoadingId !== shipment.id && (
+                                  <Button size="sm" variant="outline" onClick={() => handleLoadTracking(shipment.id)}>
+                                    Load tracking
+                                  </Button>
+                                )}
+                              </div>
+                              {trackingLoadingId === shipment.id && (
+                                <p className="text-xs text-muted-foreground">Loading…</p>
+                              )}
+                              {trackingByShipmentId[shipment.id]?.status && (
+                                <p className="text-xs text-muted-foreground">
+                                  Status: {trackingByShipmentId[shipment.id].status}
+                                  {trackingByShipmentId[shipment.id].statusDescription &&
+                                    ` — ${trackingByShipmentId[shipment.id].statusDescription}`}
+                                </p>
+                              )}
+                              {trackingByShipmentId[shipment.id]?.events?.length ? (
+                                <ul className="text-xs space-y-1">
+                                  {trackingByShipmentId[shipment.id].events!.map((ev, i) => (
+                                    <li key={i}>
+                                      {ev.timestamp ? formatDate(ev.timestamp) : ''} — {ev.description || ev.status || ''}
+                                      {ev.location ? ` @ ${ev.location}` : ''}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </div>
+                          )}
+                        {shipment.deliveryMode === 'COURIER' &&
+                          shipment.trackingNumber &&
+                          !trackingByShipmentId[shipment.id]?.events?.length &&
+                          trackingLoadingId !== shipment.id && (
+                            <div className="mt-2">
+                              <Button size="sm" variant="ghost" onClick={() => handleLoadTracking(shipment.id)}>
+                                Load tracking from provider
+                              </Button>
+                            </div>
+                          )}
 
                         {/* Destination */}
                         <div className="flex items-center gap-2 text-sm">
