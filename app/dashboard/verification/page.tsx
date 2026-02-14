@@ -16,9 +16,8 @@ import {
   getMyVerificationDocuments,
   uploadVerificationDocument,
   uploadVerificationDocumentFile,
-  type OwnerVerificationDto,
-  type OwnerVerificationDocumentDto,
-} from '@/lib/api'
+} from '@/lib/actions/verification'
+import type { OwnerVerificationDto, OwnerVerificationDocumentDto } from '@/lib/api'
 import {
   TIER_LABELS,
   DOC_TYPE_LABELS,
@@ -73,7 +72,10 @@ export default function VerificationPage() {
       setUploading(true)
       setError(null)
       try {
-        await uploadVerificationDocumentFile(uploadType, uploadFile)
+        const formData = new FormData()
+        formData.append('documentType', uploadType)
+        formData.append('file', uploadFile)
+        await uploadVerificationDocumentFile(formData)
         setUploadFile(null)
         setUploadUrl('')
         await load()

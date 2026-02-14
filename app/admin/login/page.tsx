@@ -36,7 +36,7 @@ export default function AdminLoginPage() {
     e.preventDefault()
     setError('')
     try {
-      const result = await login(email, password)
+      const result = await login(email, password, { forceUseApi: true })
       if (result.requiresTwoFactor) return
       if (result.user) {
         if (isAdminRole(result.user.role)) {
@@ -59,7 +59,7 @@ export default function AdminLoginPage() {
     }
     setError('')
     try {
-      const user = await verifyCode(pendingTwoFactor.email, code)
+      const user = await verifyCode(pendingTwoFactor.email, code, { forceUseApi: true })
       if (user && isAdminRole(user.role)) {
         router.push('/dashboard')
       } else if (user) {

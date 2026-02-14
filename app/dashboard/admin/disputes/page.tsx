@@ -11,7 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { listDisputes, resolveDispute, type DisputeDto } from '@/lib/api'
+import { listDisputes, resolveDispute } from '@/lib/actions/disputes'
+import type { DisputeDto } from '@/lib/api'
 import { Spinner } from '@/components/ui/spinner'
 import {
   Select,

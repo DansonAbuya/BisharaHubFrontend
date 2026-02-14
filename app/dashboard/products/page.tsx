@@ -18,9 +18,8 @@ import {
   updateProduct,
   deleteProduct,
   uploadProductImage,
-  type ProductDto,
-  type ProductCategoryDto,
-} from '@/lib/api'
+} from '@/lib/actions/products'
+import type { ProductDto, ProductCategoryDto } from '@/lib/api'
 import { Plus, Edit2, Trash2, BarChart3, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 
@@ -118,7 +117,9 @@ export default function ProductsPage() {
     if (!file) return
     try {
       setUploadingImage(true)
-      const { url } = await uploadProductImage(file)
+      const formData = new FormData()
+      formData.append('file', file)
+      const { url } = await uploadProductImage(formData)
       setFormImages((prev) => (prev.includes(url) ? prev : [...prev, url]))
       if (!formMainImage) setFormMainImage(url)
     } catch (err) {

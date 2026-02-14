@@ -24,6 +24,7 @@ export interface AuthUser {
   role: string
   businessId?: string
   businessName?: string
+  phone?: string
 }
 
 export interface LoginResponse {
@@ -63,6 +64,13 @@ export interface AddStaffRequest {
 export interface AddAssistantAdminRequest {
   name: string
   email: string
+}
+
+/** Add courier: name + email + phone; owner only */
+export interface AddCourierRequest {
+  name: string
+  email: string
+  phone: string
 }
 
 export async function register(data: RegisterRequest): Promise<LoginResponse> {
@@ -198,10 +206,18 @@ export async function addOwner(data: AddOwnerRequest): Promise<AuthUser> {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
+    credentials: 'include',
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || 'Failed to add owner')
+    const msg = err.message || err.error
+    if (res.status === 401) {
+      throw new Error(msg || 'Session expired. Please sign in again.')
+    }
+    if (res.status === 403) {
+      throw new Error(msg || 'You do not have permission to onboard businesses. Only platform administrators can do this.')
+    }
+    throw new Error(msg || 'Failed to add owner')
   }
   return res.json()
 }
@@ -740,18 +756,41 @@ export async function getAnalytics(): Promise<AnalyticsSummaryDto> {
 
 // --- Shipments (backend: auto-created after payment, track delivery) ---
 
+/** Courier portal: shipment with order summary */
+export interface CourierShipmentDto {
+  shipment: ShipmentDto
+  orderId: string
+  orderNumber: string
+  customerName: string | null
+  shippingAddress: string | null
+}
+
+/** Courier portal: shipment with order summary */
+export interface CourierShipmentDto {
+  shipment: ShipmentDto
+  orderId: string
+  orderNumber: string
+  customerName: string
+  shippingAddress: string
+}
+
 export interface ShipmentDto {
   id: string
   orderId: string
+  assignedCourierId?: string | null
   deliveryMode: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP' | string
   status: string
   carrier?: string | null
   trackingNumber?: string | null
+  riderName?: string | null
+  riderPhone?: string | null
+  riderVehicle?: string | null
+  riderJobId?: string | null
+  pickupLocation?: string | null
   shippedAt?: string | null
   estimatedDelivery?: string | null
   actualDelivery?: string | null
   escrowReleasedAt?: string | null
-  // Phase 1: customer sees OTP in app for seller self-delivery / pickup.
   otpCode?: string | null
 }
 
@@ -920,7 +959,7 @@ export async function createShipment(body: {
   return res.json()
 }
 
-/** Update shipment (status, carrier, tracking number, etc.). */
+/** Update shipment (status, carrier, tracking number, assigned courier, etc.). */
 export async function updateShipment(
   shipmentId: string,
   body: Partial<{
@@ -932,6 +971,7 @@ export async function updateShipment(
     riderVehicle: string | null
     riderJobId: string | null
     pickupLocation: string | null
+    assignedCourierId: string | null
   }>
 ): Promise<ShipmentDto> {
   const res = await fetch(`${API_BASE}/shipments/${shipmentId}`, {

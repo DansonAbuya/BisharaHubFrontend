@@ -6,15 +6,11 @@ import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  listProducts,
-  listOrders,
-  getAnalytics,
-  getMySellerConfig,
-  type ProductDto,
-  type OrderDto,
-  type SellerConfigDto,
-} from '@/lib/api'
+import { listProducts, getMySellerConfig } from '@/lib/actions/products'
+import { listOrders } from '@/lib/actions/orders'
+import { getAnalytics } from '@/lib/actions/analytics'
+import { getAnalyticsExportCsv } from '@/lib/actions/reports'
+import type { ProductDto, OrderDto, SellerConfigDto } from '@/lib/api'
 import {
   BarChart,
   Bar,
@@ -30,6 +26,34 @@ import { DollarSign, Package, ShoppingCart, TrendingUp } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+
+function OwnerExportReportButton() {
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const csv = await getAnalyticsExportCsv()
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'biasharahub-analytics.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+  return (
+    <Button
+      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+      onClick={handleExport}
+      disabled={exporting}
+    >
+      {exporting ? 'Exporting…' : 'Export Report'}
+    </Button>
+  )
+}
 
 export function OwnerDashboard() {
   const { user } = useAuth()
@@ -150,9 +174,7 @@ export function OwnerDashboard() {
           )
         }
         actions={
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            Export Report
-          </Button>
+          <OwnerExportReportButton />
         }
       />
 

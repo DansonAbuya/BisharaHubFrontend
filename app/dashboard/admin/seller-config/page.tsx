@@ -3,12 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import {
-  listSellerConfigs,
-  setSellerPricingPlan,
-  setSellerBranding,
-  type SellerConfigDto,
-} from '@/lib/api'
+import { listSellerConfigs, setSellerPricingPlan, setSellerBranding } from '@/lib/actions/admin'
+import type { SellerConfigDto } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

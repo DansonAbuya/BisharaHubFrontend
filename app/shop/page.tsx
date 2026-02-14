@@ -5,7 +5,7 @@
  * Products are shown only for the shop the customer selects. No sign-in required to browse;
  * add to cart / checkout prompt sign in or sign up.
  */
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -21,17 +21,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  listBusinesses,
-  listProducts,
-  listProductCategories,
-  createOrder,
-  initiatePayment,
-  type BusinessDto,
-  type ProductDto,
-  type ProductCategoryDto,
-  type OrderDto,
-} from '@/lib/api'
+import { listBusinesses, listProducts, listProductCategories } from '@/lib/actions/products'
+import { createOrder, initiatePayment } from '@/lib/actions/orders'
+import type { BusinessDto, ProductDto, ProductCategoryDto, OrderDto } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { SignInPrompt } from '@/components/sign-in-prompt'
 import { ShoppingCart, Heart, Star, Filter, Loader2, Store, Smartphone } from 'lucide-react'
@@ -63,7 +55,7 @@ function groupShopsByTier(shops: BusinessDto[]): { tier: string; label: string; 
     .map((t) => ({ tier: t, label: TIER_LABELS[t] || t, shops: byTier[t] }))
 }
 
-export default function ShopPage() {
+function ShopPageContent() {
   const searchParams = useSearchParams()
   const { user } = useAuth()
   const [shops, setShops] = useState<BusinessDto[]>([])
@@ -861,5 +853,17 @@ export default function ShopPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function ShopPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 min-h-0 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    }>
+      <ShopPageContent />
+    </Suspense>
   )
 }

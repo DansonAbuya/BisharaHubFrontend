@@ -9,7 +9,8 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Bell, Eye, EyeOff, Lock, Mail, Smartphone, ShieldCheck, Wallet } from 'lucide-react'
-import * as api from '@/lib/api'
+import { changePassword, enable2FA, disable2FA } from '@/lib/actions/auth-authenticated'
+import { getWalletBalance, getPayoutDestination, setPayoutDestination } from '@/lib/actions/wallet'
 import { Spinner } from '@/components/ui/spinner'
 import { useEffect } from 'react'
 
@@ -62,7 +63,7 @@ export default function SettingsPage() {
     }
     setChangingPassword(true)
     try {
-      await api.changePassword(currentPassword, newPassword)
+      await changePassword(currentPassword, newPassword)
       setPasswordSuccess(true)
       setCurrentPassword('')
       setNewPassword('')
@@ -80,8 +81,8 @@ export default function SettingsPage() {
     setTwoFactorError('')
     setTwoFactorLoading(true)
     try {
-      if (enabled) await api.enable2FA()
-      else await api.disable2FA()
+      if (enabled) await enable2FA()
+      else await disable2FA()
       setTwoFactorEnabled(enabled)
     } catch (err) {
       setTwoFactorError(err instanceof Error ? err.message : 'Failed to update 2FA')
@@ -92,8 +93,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!canAccessWallet) return
-    api.getWalletBalance().then((d) => setWalletBalance(d.balance)).catch(() => setWalletBalance(null))
-    api.getPayoutDestination().then((d) => setPayoutDest(d)).catch(() => setPayoutDest(null))
+    getWalletBalance().then((d) => setWalletBalance(d.balance)).catch(() => setWalletBalance(null))
+    getPayoutDestination().then((d) => setPayoutDest(d)).catch(() => setPayoutDest(null))
   }, [canAccessWallet])
 
   const handleSavePayoutDestination = async (e: React.FormEvent) => {
@@ -103,10 +104,10 @@ export default function SettingsPage() {
     setPayoutSuccess(false)
     setPayoutSaving(true)
     try {
-      await api.setPayoutDestination(payoutMethod, payoutDestination.trim())
+      await setPayoutDestination(payoutMethod, payoutDestination.trim())
       setPayoutSuccess(true)
       setPayoutDestination('')
-      api.getPayoutDestination().then((d) => setPayoutDest(d))
+      getPayoutDestination().then((d) => setPayoutDest(d))
       setTimeout(() => setPayoutSuccess(false), 3000)
     } catch (err) {
       setPayoutError(err instanceof Error ? err.message : 'Failed to update payout destination')

@@ -13,7 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { listProducts, listProductCategories, createOrder, initiatePayment, getMySellerConfig, type ProductDto, type ProductCategoryDto, type OrderDto } from '@/lib/api'
+import { listProducts, listProductCategories, getMySellerConfig } from '@/lib/actions/products'
+import { createOrder, initiatePayment } from '@/lib/actions/orders'
+import type { ProductDto, ProductCategoryDto, OrderDto, SellerConfigDto } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { ShoppingCart, Heart, Star, Filter, Loader2, Smartphone } from 'lucide-react'
 import Image from 'next/image'
@@ -53,7 +55,7 @@ export default function StorefrontPage() {
     'SELLER_SELF',
   )
   const [shippingFee, setShippingFee] = useState(0)
-  const [sellerConfig, setSellerConfig] = useState<import('@/lib/api').SellerConfigDto | null>(null)
+  const [sellerConfig, setSellerConfig] = useState<SellerConfigDto | null>(null)
 
   useEffect(() => {
     if (user?.id && typeof window !== 'undefined') {

@@ -11,7 +11,10 @@ import { MapPin, Package, Truck, CheckCircle } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
-import { listOrders, listShipments, listCourierServices, verifyShipmentOtp, createShipmentWithProvider, getShipmentTracking, type OrderDto, type ShipmentDto, type CourierServiceDto, type TrackingInfoDto } from '@/lib/api'
+import { listOrders } from '@/lib/actions/orders'
+import { listCouriers } from '@/lib/actions/admin'
+import { listShipments, listCourierServices, verifyShipmentOtp, createShipmentWithProvider, getShipmentTracking, updateShipment } from '@/lib/actions/shipments'
+import type { OrderDto, ShipmentDto, CourierServiceDto, TrackingInfoDto } from '@/lib/api'
 
 function formatDate(value?: string | null): string {
   if (!value) return '—'
@@ -21,22 +24,23 @@ function formatDate(value?: string | null): string {
 }
 
 const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'pending':
-      return 'bg-accent/30 text-accent'
-    case 'shipped':
-      return 'bg-primary/30 text-primary'
-    case 'in_transit':
-      return 'bg-secondary/30 text-foreground'
-    case 'delivered':
-      return 'bg-primary/30 text-primary'
-    default:
-      return 'bg-muted text-muted-foreground'
-  }
+  const s = (status || '').toUpperCase()
+  if (s === 'CREATED') return 'bg-accent/30 text-accent'
+  if (s === 'SHIPPED' || s === 'IN_TRANSIT' || s === 'OUT_FOR_DELIVERY') return 'bg-secondary/30 text-foreground'
+  if (s === 'DELIVERED' || s === 'COLLECTED') return 'bg-primary/30 text-primary'
+  return 'bg-muted text-muted-foreground'
 }
 
 const getStatusLabel = (status: string) => {
-  return status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')
+  const labels: Record<string, string> = {
+    CREATED: 'Awaiting dispatch',
+    SHIPPED: 'Dispatched',
+    IN_TRANSIT: 'In transit',
+    OUT_FOR_DELIVERY: 'Out for delivery',
+    DELIVERED: 'Delivered',
+    COLLECTED: 'Collected',
+  }
+  return labels[(status || '').toUpperCase()] || status?.replace(/_/g, ' ') || '—'
 }
 
 export default function ShipmentsPage() {
@@ -51,14 +55,20 @@ export default function ShipmentsPage() {
   const [verifyingId, setVerifyingId] = useState<string | null>(null)
   const [otpError, setOtpError] = useState<string | null>(null)
   const [courierServices, setCourierServices] = useState<CourierServiceDto[]>([])
+  const [couriers, setCouriers] = useState<{ id: string; name: string; phone?: string }[]>([])
   const [createWithProviderShipmentId, setCreateWithProviderShipmentId] = useState<string | null>(null)
   const [createWithProviderCode, setCreateWithProviderCode] = useState('')
   const [createWithProviderLoading, setCreateWithProviderLoading] = useState(false)
   const [createWithProviderError, setCreateWithProviderError] = useState<string | null>(null)
   const [trackingByShipmentId, setTrackingByShipmentId] = useState<Record<string, TrackingInfoDto>>({})
   const [trackingLoadingId, setTrackingLoadingId] = useState<string | null>(null)
+  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null)
+  const [dispatchForm, setDispatchForm] = useState<Record<string, { carrier: string; trackingNumber: string; riderName: string; riderPhone: string; riderVehicle: string; assignedCourierId: string }>>({})
+  const [dispatchSaving, setDispatchSaving] = useState<string | null>(null)
+  const [dispatchError, setDispatchError] = useState<string | null>(null)
 
   const isCustomerView = user?.role === 'customer'
+  const canManageShipments = !isCustomerView && (user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin' || user?.role === 'assistant_admin')
   const canCreateWithProvider = !isCustomerView && (user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin' || user?.role === 'assistant_admin')
   const integratedCouriers = courierServices.filter((c) => c.providerType && c.providerType !== 'MANUAL')
 
@@ -66,12 +76,17 @@ export default function ShipmentsPage() {
     if (!user) return
     setLoading(true)
     setError(null)
-    Promise.all([listShipments(), listOrders(), listCourierServices().catch(() => [])])
-      .then(([s, o, couriers]) => {
-        setShipments(s)
-        setOrders(o)
-        setCourierServices(couriers)
-      })
+    Promise.all([
+      listShipments(),
+      listOrders(),
+      listCourierServices().catch(() => []),
+      listCouriers().catch(() => []),
+    ]).then(([s, o, svcs, cour]) => {
+      setShipments(s)
+      setOrders(o)
+      setCourierServices(svcs)
+      setCouriers(cour.map((u) => ({ id: u.id, name: u.name, phone: u.phone })))
+    })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Failed to load shipments')
       })
@@ -122,14 +137,14 @@ export default function ShipmentsPage() {
         (order?.orderId || '').toLowerCase().includes(term) ||
         (order?.customerName || '').toLowerCase().includes(term) ||
         (shipment.trackingNumber || '').toLowerCase().includes(term)
-      const matchStatus = filterStatus === 'all' || shipment.status === filterStatus
+      const matchStatus = filterStatus === 'all' || (shipment.status || '').toUpperCase() === filterStatus
       return matchSearch && matchStatus
     })
   }, [roleScopedShipments, ordersById, searchTerm, filterStatus])
 
-  const pendingShipments = roleScopedShipments.filter((s) => s.status === 'pending').length
-  const inTransitShipments = roleScopedShipments.filter((s) => s.status === 'in_transit').length
-  const deliveredShipments = roleScopedShipments.filter((s) => s.status === 'delivered').length
+  const pendingShipments = roleScopedShipments.filter((s) => (s.status || '').toUpperCase() === 'CREATED').length
+  const inTransitShipments = roleScopedShipments.filter((s) => ['IN_TRANSIT', 'SHIPPED', 'OUT_FOR_DELIVERY'].includes((s.status || '').toUpperCase())).length
+  const deliveredShipments = roleScopedShipments.filter((s) => ['DELIVERED', 'COLLECTED'].includes((s.status || '').toUpperCase())).length
 
   const handleOtpChange = (shipmentId: string, value: string) => {
     setOtpValues((prev) => ({ ...prev, [shipmentId]: value }))
@@ -178,6 +193,44 @@ export default function ShipmentsPage() {
       setTrackingByShipmentId((prev) => ({ ...prev, [shipmentId]: info }))
     } finally {
       setTrackingLoadingId(null)
+    }
+  }
+
+  const getDispatchForm = (s: ShipmentDto) =>
+    dispatchForm[s.id] ?? {
+      carrier: s.carrier ?? '',
+      trackingNumber: s.trackingNumber ?? '',
+      riderName: s.riderName ?? '',
+      riderPhone: s.riderPhone ?? '',
+      riderVehicle: s.riderVehicle ?? '',
+      assignedCourierId: s.assignedCourierId ?? '',
+    }
+
+  const handleMarkDispatched = async (shipment: ShipmentDto) => {
+    const form = getDispatchForm(shipment)
+    setDispatchSaving(shipment.id)
+    setDispatchError(null)
+    try {
+      const updated = await updateShipment(shipment.id, {
+        status: 'IN_TRANSIT',
+        carrier: form.carrier || null,
+        trackingNumber: form.trackingNumber || null,
+        riderName: form.riderName || null,
+        riderPhone: form.riderPhone || null,
+        riderVehicle: form.riderVehicle || null,
+        assignedCourierId: form.assignedCourierId || null,
+      })
+      setShipments((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
+      setEditingShipmentId(null)
+      setDispatchForm((prev) => {
+        const next = { ...prev }
+        delete next[shipment.id]
+        return next
+      })
+    } catch (e) {
+      setDispatchError(e instanceof Error ? e.message : 'Failed to mark as dispatched')
+    } finally {
+      setDispatchSaving(null)
     }
   }
 
@@ -266,10 +319,9 @@ export default function ShipmentsPage() {
                 className="h-10 px-3 rounded-md border border-border bg-background text-foreground whitespace-nowrap"
               >
                 <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="shipped">Shipped</option>
-                <option value="in_transit">In Transit</option>
-                <option value="delivered">Delivered</option>
+                <option value="CREATED">Awaiting dispatch</option>
+                <option value="IN_TRANSIT">In Transit</option>
+                <option value="DELIVERED">Delivered</option>
               </select>
             </div>
           </PageSection>
@@ -328,13 +380,13 @@ export default function ShipmentsPage() {
                             </div>
                           </div>
 
-                          {shipment.status !== 'pending' && (
+                          {['IN_TRANSIT', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COLLECTED'].includes((shipment.status || '').toUpperCase()) && (
                             <>
                               <div className="h-6 border-l-2 border-primary/30 ml-5" />
                               <div className="flex items-center gap-4">
                                 <div
                                   className={`p-2 rounded-full ${
-                                    shipment.status === 'in_transit' || shipment.status === 'delivered'
+                                    ['IN_TRANSIT', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COLLECTED'].includes((shipment.status || '').toUpperCase())
                                       ? 'bg-primary text-primary-foreground'
                                       : 'bg-muted text-muted-foreground'
                                   }`}
@@ -346,14 +398,15 @@ export default function ShipmentsPage() {
                                     In Transit
                                   </p>
                                   <p className="text-sm text-foreground">
-                                    Carrier: {shipment.carrier || '—'}
+                                    {shipment.carrier ? `Courier: ${shipment.carrier}` : shipment.riderVehicle ? `Vehicle reg: ${shipment.riderVehicle}` : '—'}
+                                    {shipment.trackingNumber ? ` · ${shipment.trackingNumber}` : ''}
                                   </p>
                                 </div>
                               </div>
                             </>
                           )}
 
-                          {shipment.status === 'delivered' && (
+                          {['DELIVERED', 'COLLECTED'].includes((shipment.status || '').toUpperCase()) && (
                             <>
                               <div className="h-6 border-l-2 border-primary/30 ml-5" />
                               <div className="flex items-center gap-4">
@@ -395,9 +448,15 @@ export default function ShipmentsPage() {
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">Carrier</p>
+                            <p className="text-xs text-muted-foreground">Carrier / Courier service</p>
                             <p className="font-semibold text-foreground text-sm">
                               {shipment.carrier || '—'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Vehicle / Bike reg</p>
+                            <p className="font-semibold text-foreground text-sm">
+                              {shipment.riderVehicle || '—'}
                             </p>
                           </div>
                           <div>
@@ -407,6 +466,107 @@ export default function ShipmentsPage() {
                             </p>
                           </div>
                         </div>
+
+                        {/* Seller: add dispatch details and mark as dispatched */}
+                        {canManageShipments && (shipment.status || '').toUpperCase() === 'CREATED' && (
+                          <div className="mt-3 py-3 border-t border-border space-y-3">
+                            <p className="text-sm font-medium text-foreground">Add dispatch details and notify customer</p>
+                            {dispatchError && <p className="text-xs text-destructive">{dispatchError}</p>}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-xs text-muted-foreground block mb-1">Courier service (if using courier)</label>
+                                <Input
+                                  placeholder="e.g. DHL, Sendy"
+                                  value={getDispatchForm(shipment).carrier}
+                                  onChange={(e) =>
+                                    setDispatchForm((prev) => ({
+                                      ...prev,
+                                      [shipment.id]: { ...getDispatchForm(shipment), carrier: e.target.value },
+                                    }))
+                                  }
+                                  className="h-9"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-muted-foreground block mb-1">Tracking number</label>
+                                <Input
+                                  placeholder="Optional"
+                                  value={getDispatchForm(shipment).trackingNumber}
+                                  onChange={(e) =>
+                                    setDispatchForm((prev) => ({
+                                      ...prev,
+                                      [shipment.id]: { ...getDispatchForm(shipment), trackingNumber: e.target.value },
+                                    }))
+                                  }
+                                  className="h-9"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-muted-foreground block mb-1">Driver name (if seller/rider delivery)</label>
+                                <Input
+                                  placeholder="Optional"
+                                  value={getDispatchForm(shipment).riderName}
+                                  onChange={(e) =>
+                                    setDispatchForm((prev) => ({
+                                      ...prev,
+                                      [shipment.id]: { ...getDispatchForm(shipment), riderName: e.target.value },
+                                    }))
+                                  }
+                                  className="h-9"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-muted-foreground block mb-1">Vehicle / bike registration</label>
+                                <Input
+                                  placeholder="e.g. KCA 123A, KBZ 456B"
+                                  value={getDispatchForm(shipment).riderVehicle}
+                                  onChange={(e) =>
+                                    setDispatchForm((prev) => ({
+                                      ...prev,
+                                      [shipment.id]: { ...getDispatchForm(shipment), riderVehicle: e.target.value },
+                                    }))
+                                  }
+                                  className="h-9"
+                                />
+                              </div>
+                              {couriers.length > 0 && (
+                                <div className="sm:col-span-2">
+                                  <label className="text-xs text-muted-foreground block mb-1">Assign courier (optional)</label>
+                                  <select
+                                    value={getDispatchForm(shipment).assignedCourierId}
+                                    onChange={(e) =>
+                                      setDispatchForm((prev) => ({
+                                        ...prev,
+                                        [shipment.id]: { ...getDispatchForm(shipment), assignedCourierId: e.target.value },
+                                      }))
+                                    }
+                                    className="h-9 px-3 rounded-md border border-input bg-background w-full text-sm"
+                                  >
+                                    <option value="">— None —</option>
+                                    {couriers.map((c) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.name} {c.phone ? `(${c.phone})` : ''}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Assigned couriers see this delivery in their Courier Portal.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleMarkDispatched(shipment)}
+                              disabled={dispatchSaving === shipment.id}
+                            >
+                              {dispatchSaving === shipment.id ? 'Saving…' : 'Save & Mark as dispatched'}
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              Customer will be notified (in-app and WhatsApp) with courier and vehicle details.
+                            </p>
+                          </div>
+                        )}
 
                         {/* Create with integrated provider (owner/staff/admin, COURIER, no tracking yet) */}
                         {canCreateWithProvider &&
@@ -505,8 +665,7 @@ export default function ShipmentsPage() {
                         {/* OTP confirmation for delivery / pickup */}
                         {(shipment.deliveryMode === 'SELLER_SELF' ||
                           shipment.deliveryMode === 'CUSTOMER_PICKUP') &&
-                          shipment.status !== 'DELIVERED' &&
-                          shipment.status !== 'COLLECTED' && (
+                          !['DELIVERED', 'COLLECTED'].includes((shipment.status || '').toUpperCase()) && (
                             <div className="mt-4 border-t border-border pt-3 space-y-2">
                               <p className="text-sm font-medium text-foreground">
                                 Delivery code confirmation
