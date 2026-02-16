@@ -21,6 +21,11 @@ const PATH_LABELS: Record<string, string> = {
   orders: 'Orders',
   products: 'Products',
   shipments: 'Shipments',
+  courier: 'My Deliveries',
+  couriers: 'Couriers',
+  expenses: 'Expenses',
+  accounting: 'Accounting',
+  reconciliation: 'Reconciliation',
   analytics: 'Analytics',
   staff: 'Staff',
   verification: 'Verification',
@@ -32,6 +37,7 @@ const PATH_LABELS: Record<string, string> = {
   owners: 'Onboard Business',
   'pending-verification': 'Verify Business',
   'assistant-admins': 'Assistant Admins',
+  disputes: 'Disputes',
 }
 
 function DashboardBreadcrumbs() {

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -13,10 +13,11 @@ import { Spinner } from '@/components/ui/spinner'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Eye, EyeOff } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnUrl = searchParams.get('returnUrl') || '/dashboard'
+  const inactivityLogout = searchParams.get('reason') === 'inactivity'
   const { login, verifyCode, pendingTwoFactor, cancelTwoFactor, isLoading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -76,6 +77,13 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {inactivityLogout && (
+              <Alert className="border-amber-500/50 bg-amber-500/10">
+                <AlertDescription>
+                  You were signed out due to inactivity. Please sign in again to continue.
+                </AlertDescription>
+              </Alert>
+            )}
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
@@ -172,5 +180,17 @@ export default function LoginPage() {
 
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 min-h-0 flex items-center justify-center">
+        <Spinner className="w-8 h-8" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

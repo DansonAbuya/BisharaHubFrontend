@@ -4,13 +4,8 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import {
-  getSellerConfig,
-  setSellerPricingPlan,
-  setSellerBranding,
-  setSellerGrowthConfig,
-  type SellerConfigDto,
-} from '@/lib/api'
+import { getSellerConfig, setSellerPricingPlan, setSellerBranding, setSellerGrowthConfig } from '@/lib/actions/admin'
+import type { SellerConfigDto } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

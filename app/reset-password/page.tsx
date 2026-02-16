@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { resetPassword } from '@/lib/api'
+import { resetPassword } from '@/lib/actions/auth'
 import { Spinner } from '@/components/ui/spinner'
 import { Eye, EyeOff } from 'lucide-react'
 

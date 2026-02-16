@@ -1,7 +1,10 @@
 'use client'
 
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import * as api from './api'
+import { setAuthCookie, clearAuthCookie } from './actions/auth-cookie'
+import { getCurrentUser as getCurrentUserAction } from './actions/user'
 
 export type UserRole = 'owner' | 'staff' | 'customer' | 'super_admin' | 'assistant_admin'
 
@@ -29,10 +32,10 @@ interface AuthContextType {
   isLoading: boolean
   /** Set when backend returns requiresTwoFactor; clear after verifyCode or cancel */
   pendingTwoFactor: PendingTwoFactor | null
-  login: (email: string, password: string) => Promise<{ requiresTwoFactor: boolean; user?: AuthUser }>
+  login: (email: string, password: string, options?: { forceUseApi?: boolean }) => Promise<{ requiresTwoFactor: boolean; user?: AuthUser }>
   register: (name: string, email: string, password: string, phone?: string) => Promise<{ requiresTwoFactor: boolean }>
   /** Complete login/register after 2FA code is entered. Returns the authenticated user on success. */
-  verifyCode: (email: string, code: string) => Promise<AuthUser | null>
+  verifyCode: (email: string, code: string, options?: { forceUseApi?: boolean }) => Promise<AuthUser | null>
   cancelTwoFactor: () => void
   logout: () => void
   /** Reload current user from API (e.g. after updating profile/phone). */
@@ -42,6 +45,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const USE_API = !!process.env.NEXT_PUBLIC_API_URL
+
+/** Inactivity timeout in milliseconds (5 minutes). User is logged out after this period of no activity. */
+const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000
 
 // Mock user data (used when no API configured)
 const MOCK_USERS: Record<string, { password: string; user: AuthUser }> = {
@@ -99,11 +105,13 @@ function toAuthUser(u: api.AuthUser): AuthUser {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   const [pendingTwoFactor, setPendingTwoFactor] = useState<PendingTwoFactor | null>(null)
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const persistSession = (authUser: AuthUser, token?: string, refreshToken?: string) => {
     setUser(authUser)
@@ -111,13 +119,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionStorage.setItem('biashara_user', JSON.stringify(authUser))
     if (token) sessionStorage.setItem('biashara_token', token)
     if (refreshToken) sessionStorage.setItem('biashara_refresh_token', refreshToken)
+    if (token) setAuthCookie(token, refreshToken).catch(() => {})
   }
 
-  const login = async (email: string, password: string): Promise<{ requiresTwoFactor: boolean; user?: AuthUser }> => {
+  const login = async (email: string, password: string, options?: { forceUseApi?: boolean }): Promise<{ requiresTwoFactor: boolean; user?: AuthUser }> => {
+    const useApi = USE_API || options?.forceUseApi === true
     setIsLoading(true)
     setPendingTwoFactor(null)
     try {
-      if (USE_API) {
+      if (useApi) {
         const res = await api.login(email, password)
         if (res.requiresTwoFactor) {
           setPendingTwoFactor({ email, user: toAuthUser(res.user) })
@@ -161,8 +171,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const verifyCode = async (email: string, code: string): Promise<AuthUser | null> => {
-    if (!USE_API) return null
+  const verifyCode = async (email: string, code: string, options?: { forceUseApi?: boolean }): Promise<AuthUser | null> => {
+    const useApi = USE_API || options?.forceUseApi === true
+    if (!useApi) return null
     setIsLoading(true)
     try {
       const res = await api.verifyCode(email, code)
@@ -178,18 +189,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const cancelTwoFactor = () => setPendingTwoFactor(null)
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null)
     setPendingTwoFactor(null)
     sessionStorage.removeItem('biashara_user')
     sessionStorage.removeItem('biashara_token')
     sessionStorage.removeItem('biashara_refresh_token')
-  }
+    clearAuthCookie().catch(() => {})
+  }, [])
 
   const refreshUser = async () => {
     if (!USE_API) return
     try {
-      const fresh = await api.getCurrentUser()
+      const fresh = await getCurrentUserAction()
       if (fresh) {
         setUser(toAuthUser(fresh))
         sessionStorage.setItem('biashara_user', JSON.stringify(fresh))
@@ -199,23 +211,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  /** Inactivity timeout: log out user after 5 minutes of no activity. */
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') return
+
+    let lastActivityAt = 0
+    const THROTTLE_MS = 1000 // Only reset timer at most once per second to avoid excessive resets from mousemove
+
+    const resetTimer = () => {
+      const now = Date.now()
+      if (lastActivityAt > 0 && now - lastActivityAt < THROTTLE_MS) return
+      lastActivityAt = now
+
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current)
+        inactivityTimerRef.current = null
+      }
+      inactivityTimerRef.current = setTimeout(() => {
+        logout()
+        router.push('/login?reason=inactivity')
+      }, INACTIVITY_TIMEOUT_MS)
+    }
+
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click']
+    resetTimer()
+    events.forEach((e) => window.addEventListener(e, resetTimer))
+
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, resetTimer))
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current)
+        inactivityTimerRef.current = null
+      }
+    }
+  }, [user, logout, router])
+
   React.useEffect(() => {
     let cancelled = false
     const init = async () => {
       const stored = sessionStorage.getItem('biashara_user')
-      if (stored) {
+      if (USE_API && typeof window !== 'undefined') {
         try {
-          const parsed = JSON.parse(stored) as AuthUser
-          if (USE_API && typeof window !== 'undefined') {
+          const fresh = await getCurrentUserAction()
+          if (!cancelled && fresh) setUser(toAuthUser(fresh))
+          else if (!cancelled && stored) {
             try {
-              const fresh = await api.getCurrentUser()
-              if (!cancelled && fresh) setUser(toAuthUser(fresh))
+              setUser(JSON.parse(stored) as AuthUser)
             } catch {
-              if (!cancelled) setUser(parsed)
+              // ignore
             }
-          } else if (!cancelled) {
-            setUser(parsed)
           }
+        } catch {
+          if (!cancelled && stored) {
+            try {
+              setUser(JSON.parse(stored) as AuthUser)
+            } catch (e) {
+              console.error('Failed to restore user session', e)
+            }
+          }
+        }
+      } else if (stored) {
+        try {
+          if (!cancelled) setUser(JSON.parse(stored) as AuthUser)
         } catch (e) {
           console.error('Failed to restore user session', e)
         }

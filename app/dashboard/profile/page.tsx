@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { listOrders, updateMyProfile, type OrderDto } from '@/lib/api'
+import { listOrders } from '@/lib/actions/orders'
+import { updateMyProfile } from '@/lib/actions/user'
+import type { OrderDto } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

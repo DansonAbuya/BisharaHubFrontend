@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Download, Eye, Filter, Loader2, Smartphone } from 'lucide-react'
+import { Download, Eye, Filter, FileText, Loader2, Smartphone } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -15,7 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { listOrders, initiatePayment, cancelOrder, getReviewForOrder, createReview, type OrderDto, type OrderReviewDto } from '@/lib/api'
+import { listOrders, initiatePayment, cancelOrder, getReviewForOrder, createReview } from '@/lib/actions/orders'
+import { getInvoiceHtml } from '@/lib/actions/reports'
+import { createDispute } from '@/lib/actions/disputes'
+import type { OrderDto, OrderReviewDto } from '@/lib/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
@@ -45,6 +48,13 @@ export default function OrdersPage() {
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [orderForDispute, setOrderForDispute] = useState<OrderDto | null>(null)
+  const [disputeType, setDisputeType] = useState('other')
+  const [disputeDescription, setDisputeDescription] = useState('')
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false)
+  const [disputeError, setDisputeError] = useState<string | null>(null)
+  const [disputeSuccess, setDisputeSuccess] = useState(false)
+  const [invoiceLoadingOrderId, setInvoiceLoadingOrderId] = useState<string | null>(null)
 
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
@@ -78,7 +88,13 @@ export default function OrdersPage() {
       !searchTerm.trim() ||
       orderIdStr.includes(searchTerm.toLowerCase()) ||
       customerStr.includes(searchTerm.toLowerCase())
-    const matchStatus = filterStatus === 'all' || order.status === filterStatus
+    const isUnpaid = order.status === 'pending' && (order.paymentStatus ?? 'pending') === 'pending'
+    const matchStatus =
+      filterStatus === 'all'
+        ? true
+        : filterStatus === 'unpaid'
+          ? isUnpaid
+          : order.status === filterStatus
     return matchSearch && matchStatus
   })
 
@@ -298,14 +314,22 @@ export default function OrdersPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border">
+        <Card
+          className={`border-border transition-colors ${isCustomerView ? 'cursor-pointer hover:bg-secondary/30' : ''} ${filterStatus === 'unpaid' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => isCustomerView && setFilterStatus('unpaid')}
+        >
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-foreground">Pending</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium text-foreground">
+              {isCustomerView ? 'Unpaid' : 'Pending'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl sm:text-3xl font-bold text-accent">
-              {ordersFilteredByCustomer.filter((o) => o.status === 'pending').length}
+              {ordersFilteredByCustomer.filter((o) => o.status === 'pending' && (o.paymentStatus ?? 'pending') === 'pending').length}
             </div>
+            {isCustomerView && (
+              <p className="text-xs text-muted-foreground mt-1">Tap to filter and pay</p>
+            )}
           </CardContent>
         </Card>
 
@@ -347,6 +371,9 @@ export default function OrdersPage() {
             className="h-10 px-3 rounded-md border border-border bg-background text-foreground flex-1 text-sm"
           >
             <option value="all">All Status</option>
+            {isCustomerView && (
+              <option value="unpaid">Unpaid (pay now)</option>
+            )}
             <option value="pending">Pending</option>
             <option value="confirmed">Confirmed</option>
             <option value="processing">Processing</option>
@@ -444,6 +471,56 @@ export default function OrdersPage() {
                     <Eye className="w-4 h-4 mr-2" />
                     View Details
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-foreground hover:bg-secondary/50"
+                    disabled={invoiceLoadingOrderId === order.id}
+                    onClick={async () => {
+                      if (!order.id) return
+                      setInvoiceLoadingOrderId(order.id)
+                      try {
+                        const html = await getInvoiceHtml(order.id)
+                        const w = window.open('', '_blank', 'noopener')
+                        if (w) {
+                          w.document.write(html)
+                          w.document.close()
+                        }
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : 'Failed to generate invoice')
+                      } finally {
+                        setInvoiceLoadingOrderId(null)
+                      }
+                    }}
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    {invoiceLoadingOrderId === order.id ? 'Generating…' : 'Invoice'}
+                  </Button>
+                  {isCustomerView && canPayOrder(order) && (
+                    <Button
+                      size="sm"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                      onClick={() => handleOpenPay(order)}
+                    >
+                      <Smartphone className="w-4 h-4 mr-2" />
+                      Pay now
+                    </Button>
+                  )}
+                  {isCustomerView && order.customerId === user?.id && order.status !== 'cancelled' && order.status !== 'pending' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setOrderForDispute(order)
+                        setDisputeDescription('')
+                        setDisputeType('other')
+                        setDisputeError(null)
+                        setDisputeSuccess(false)
+                      }}
+                    >
+                      Report problem
+                    </Button>
+                  )}
                   {order.status === 'pending' && (order.paymentStatus ?? 'pending') === 'pending' && isCustomerView && (
                     <Button
                       variant="outline"
@@ -560,7 +637,7 @@ export default function OrdersPage() {
                 >
                   Close
                 </Button>
-                {canPayOrder(selectedOrder) && summaryConfirmed && (
+                {canPayOrder(selectedOrder) && (summaryConfirmed || (selectedOrder.paymentStatus ?? 'pending') === 'pending') && (
                   <Button
                     className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     onClick={() => {
@@ -572,8 +649,29 @@ export default function OrdersPage() {
                     Pay with M-Pesa
                   </Button>
                 )}
-                <Button variant="outline" className="bg-transparent">
-                  Download Invoice
+                <Button
+                  variant="outline"
+                  className="bg-transparent"
+                  disabled={invoiceLoadingOrderId === selectedOrder?.id || !selectedOrder?.id}
+                  onClick={async () => {
+                    if (!selectedOrder?.id) return
+                    setInvoiceLoadingOrderId(selectedOrder.id)
+                    try {
+                      const html = await getInvoiceHtml(selectedOrder.id)
+                      const w = window.open('', '_blank', 'noopener')
+                      if (w) {
+                        w.document.write(html)
+                        w.document.close()
+                      }
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : 'Failed to generate invoice')
+                    } finally {
+                      setInvoiceLoadingOrderId(null)
+                    }
+                  }}
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  {invoiceLoadingOrderId === selectedOrder?.id ? 'Generating…' : 'Print Invoice'}
                 </Button>
               </div>
 
@@ -735,6 +833,83 @@ export default function OrdersPage() {
         loading={!!cancellingOrderId}
         onConfirm={handleConfirmCancelOrder}
       />
+
+      {/* Report problem / Open dispute */}
+      <Dialog open={!!orderForDispute} onOpenChange={(open) => { if (!open) setOrderForDispute(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Report a problem</DialogTitle>
+            <DialogDescription>
+              Open a dispute for this order. Support will review and may contact the seller. You can add delivery proof (e.g. photo URL) if relevant.
+            </DialogDescription>
+          </DialogHeader>
+          {orderForDispute && (
+            <form
+              className="space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault()
+                setDisputeError(null)
+                setDisputeSubmitting(true)
+                try {
+                  await createDispute({
+                    orderId: orderForDispute.id,
+                    disputeType: disputeType,
+                    description: disputeDescription.trim() || undefined,
+                  })
+                  setDisputeSuccess(true)
+                  setTimeout(() => { setOrderForDispute(null); setDisputeSuccess(false) }, 2000)
+                } catch (err) {
+                  setDisputeError(err instanceof Error ? err.message : 'Failed to submit')
+                } finally {
+                  setDisputeSubmitting(false)
+                }
+              }}
+            >
+              {disputeSuccess && (
+                <Alert className="bg-primary/10 border-primary/30">
+                  <AlertDescription>Dispute submitted. Support will review.</AlertDescription>
+                </Alert>
+              )}
+              {disputeError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{disputeError}</AlertDescription>
+                </Alert>
+              )}
+              <div>
+                <label className="text-sm font-medium text-foreground">Problem type</label>
+                <Select value={disputeType} onValueChange={setDisputeType}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="late_shipping">Late shipping</SelectItem>
+                    <SelectItem value="wrong_item">Wrong item</SelectItem>
+                    <SelectItem value="fraud">Fraud</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Description</label>
+                <Input
+                  className="mt-1"
+                  placeholder="Describe what went wrong..."
+                  value={disputeDescription}
+                  onChange={(e) => setDisputeDescription(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => setOrderForDispute(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={disputeSubmitting}>
+                  {disputeSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : 'Submit dispute'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

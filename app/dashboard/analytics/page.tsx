@@ -20,11 +20,44 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { listProducts, listOrders, getAnalytics, type ProductDto, type OrderDto } from '@/lib/api'
+import { listProducts } from '@/lib/actions/products'
+import { listOrders } from '@/lib/actions/orders'
+import { getAnalytics } from '@/lib/actions/analytics'
+import { getAnalyticsExportCsv } from '@/lib/actions/reports'
+import type { ProductDto, OrderDto } from '@/lib/api'
 import { Download, TrendingUp, Calendar } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+
+function AnalyticsExportButton() {
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const csv = await getAnalyticsExportCsv()
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'biasharahub-analytics.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+  return (
+    <Button
+      className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+      onClick={handleExport}
+      disabled={exporting}
+    >
+      <Download className="w-4 h-4" />
+      {exporting ? 'Exporting…' : 'Export Report'}
+    </Button>
+  )
+}
 
 export default function AnalyticsPage() {
   const { user } = useAuth()
@@ -166,10 +199,7 @@ export default function AnalyticsPage() {
         title="Business Analytics"
         description="Comprehensive business insights and metrics to help you run BiasharaHub more effectively."
         actions={
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
-            <Download className="w-4 h-4" />
-            Export Report
-          </Button>
+          <AnalyticsExportButton />
         }
       />
 

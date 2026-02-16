@@ -18,13 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  listPendingOwners,
-  getOwnerDocuments,
-  setOwnerVerification,
-  type OwnerVerificationDto,
-  type OwnerVerificationDocumentDto,
-} from '@/lib/api'
+import { listPendingOwners, getOwnerDocuments, setOwnerVerification } from '@/lib/actions/admin'
+import type { OwnerVerificationDto, OwnerVerificationDocumentDto } from '@/lib/api'
 import {
   TIER_LABELS,
   DOC_TYPE_LABELS,

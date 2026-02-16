@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -13,7 +13,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Eye, EyeOff } from 'lucide-react'
 
-export default function SignUpPage() {
+function SignUpForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnUrl = searchParams.get('returnUrl') || '/dashboard'
@@ -256,5 +256,17 @@ export default function SignUpPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 min-h-0 flex items-center justify-center">
+        <Spinner className="w-8 h-8" />
+      </div>
+    }>
+      <SignUpForm />
+    </Suspense>
   )
 }

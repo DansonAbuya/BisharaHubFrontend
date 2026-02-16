@@ -24,6 +24,7 @@ export interface AuthUser {
   role: string
   businessId?: string
   businessName?: string
+  phone?: string
 }
 
 export interface LoginResponse {
@@ -41,12 +42,16 @@ export interface RegisterRequest {
   phone?: string
 }
 
-/** Add owner: name, email, business name; optional applyingForTier (tier1/tier2/tier3) so owner knows which documents to submit */
+/** Add owner: name, email, business name, applyingForTier, and payout details (used for auto-payout on delivery). */
 export interface AddOwnerRequest {
   name: string
   email: string
   businessName: string
-  applyingForTier?: string
+  applyingForTier: string
+  /** Payout method: MPESA or BANK_TRANSFER. Used to release seller payments on order delivery. */
+  payoutMethod: string
+  /** For MPESA: M-Pesa phone (2547XXXXXXXX or 07XXXXXXXX). For BANK_TRANSFER: bank name and account. */
+  payoutDestination: string
 }
 
 /** Add staff: name + email only; backend sends temp password by email */
@@ -59,6 +64,13 @@ export interface AddStaffRequest {
 export interface AddAssistantAdminRequest {
   name: string
   email: string
+}
+
+/** Add courier: name + email + phone; owner only */
+export interface AddCourierRequest {
+  name: string
+  email: string
+  phone: string
 }
 
 export async function register(data: RegisterRequest): Promise<LoginResponse> {
@@ -194,10 +206,18 @@ export async function addOwner(data: AddOwnerRequest): Promise<AuthUser> {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
+    credentials: 'include',
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || 'Failed to add owner')
+    const msg = err.message || err.error
+    if (res.status === 401) {
+      throw new Error(msg || 'Session expired. Please sign in again.')
+    }
+    if (res.status === 403) {
+      throw new Error(msg || 'You do not have permission to onboard businesses. Only platform administrators can do this.')
+    }
+    throw new Error(msg || 'Failed to add owner')
   }
   return res.json()
 }
@@ -736,18 +756,41 @@ export async function getAnalytics(): Promise<AnalyticsSummaryDto> {
 
 // --- Shipments (backend: auto-created after payment, track delivery) ---
 
+/** Courier portal: shipment with order summary */
+export interface CourierShipmentDto {
+  shipment: ShipmentDto
+  orderId: string
+  orderNumber: string
+  customerName: string | null
+  shippingAddress: string | null
+}
+
+/** Courier portal: shipment with order summary */
+export interface CourierShipmentDto {
+  shipment: ShipmentDto
+  orderId: string
+  orderNumber: string
+  customerName: string
+  shippingAddress: string
+}
+
 export interface ShipmentDto {
   id: string
   orderId: string
+  assignedCourierId?: string | null
   deliveryMode: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP' | string
   status: string
   carrier?: string | null
   trackingNumber?: string | null
+  riderName?: string | null
+  riderPhone?: string | null
+  riderVehicle?: string | null
+  riderJobId?: string | null
+  pickupLocation?: string | null
   shippedAt?: string | null
   estimatedDelivery?: string | null
   actualDelivery?: string | null
   escrowReleasedAt?: string | null
-  // Phase 1: customer sees OTP in app for seller self-delivery / pickup.
   otpCode?: string | null
 }
 
@@ -798,6 +841,151 @@ export async function getBusinessRating(businessId: string): Promise<number> {
   return typeof value === 'number' ? value : 0
 }
 
+// --- Courier services (platform catalog for COURIER delivery mode) ---
+
+export interface CourierServiceDto {
+  courierId: string
+  name: string
+  code: string
+  description?: string | null
+  trackingUrlTemplate?: string | null
+  /** MANUAL, DHL, FEDEX, SENDY, REST - integrated provider type */
+  providerType?: string | null
+  apiBaseUrl?: string | null
+  isActive: boolean
+  baseRate: number
+  ratePerKg: number
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+/** List active courier services (for dropdown when creating/editing shipments). Public GET; no auth required. */
+export async function listCourierServices(): Promise<CourierServiceDto[]> {
+  const res = await fetch(`${API_BASE}/courier-services`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch courier services')
+  return res.json()
+}
+
+/** Admin: list all courier services (including inactive). */
+export async function listAdminCourierServices(): Promise<CourierServiceDto[]> {
+  const res = await fetch(`${API_BASE}/admin/courier-services`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch courier services')
+  return res.json()
+}
+
+/** Admin: create courier service. */
+export async function createCourierService(body: {
+  name: string
+  code: string
+  description?: string
+  trackingUrlTemplate?: string
+  providerType?: string
+  apiBaseUrl?: string
+  isActive?: boolean
+  baseRate: number
+  ratePerKg: number
+}): Promise<CourierServiceDto> {
+  const res = await fetch(`${API_BASE}/admin/courier-services`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to create courier service')
+  }
+  return res.json()
+}
+
+/** Admin: update courier service. */
+export async function updateCourierService(
+  courierId: string,
+  body: {
+    name?: string
+    description?: string
+    trackingUrlTemplate?: string
+    providerType?: string
+    apiBaseUrl?: string
+    isActive?: boolean
+    baseRate?: number
+    ratePerKg?: number
+  }
+): Promise<CourierServiceDto> {
+  const res = await fetch(`${API_BASE}/admin/courier-services/${courierId}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update courier service')
+  }
+  return res.json()
+}
+
+/** Admin: delete courier service. */
+export async function deleteCourierService(courierId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/admin/courier-services/${courierId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to delete courier service')
+  }
+}
+
+/** Create a shipment for an order (owner/staff). Use carrier from courier service name/code when delivery mode is COURIER. */
+export async function createShipment(body: {
+  orderId: string
+  deliveryMode?: string
+  carrier?: string | null
+  trackingNumber?: string | null
+  riderName?: string | null
+  riderPhone?: string | null
+  riderVehicle?: string | null
+  riderJobId?: string | null
+  pickupLocation?: string | null
+}): Promise<ShipmentDto> {
+  const res = await fetch(`${API_BASE}/shipments`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to create shipment')
+  }
+  return res.json()
+}
+
+/** Update shipment (status, carrier, tracking number, assigned courier, etc.). */
+export async function updateShipment(
+  shipmentId: string,
+  body: Partial<{
+    status: string
+    carrier: string | null
+    trackingNumber: string | null
+    riderName: string | null
+    riderPhone: string | null
+    riderVehicle: string | null
+    riderJobId: string | null
+    pickupLocation: string | null
+    assignedCourierId: string | null
+  }>
+): Promise<ShipmentDto> {
+  const res = await fetch(`${API_BASE}/shipments/${shipmentId}`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update shipment')
+  }
+  return res.json()
+}
+
 /** List shipments for the current tenant. Owner/staff: their business; customer: their orders only (backend-scoped). */
 export async function listShipments(): Promise<ShipmentDto[]> {
   const res = await fetch(`${API_BASE}/shipments`, { headers: getAuthHeaders() })
@@ -823,6 +1011,45 @@ export async function verifyShipmentOtp(shipmentId: string, code: string): Promi
     const err = await res.json().catch(() => ({}))
     throw new Error((err as { error?: string }).error || 'Invalid or expired delivery code')
   }
+  return res.json()
+}
+
+/** Create shipment with integrated courier provider (DHL, FedEx, Sendy, REST). Updates shipment with tracking number. */
+export async function createShipmentWithProvider(
+  shipmentId: string,
+  courierServiceCode: string
+): Promise<{ shipment: ShipmentDto; trackingNumber?: string; labelUrl?: string }> {
+  const res = await fetch(`${API_BASE}/shipments/${shipmentId}/create-with-provider`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ courierServiceCode: courierServiceCode.trim() }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to create shipment with provider')
+  }
+  return res.json()
+}
+
+export interface TrackingEventDto {
+  timestamp: string
+  status?: string
+  description?: string
+  location?: string
+}
+
+export interface TrackingInfoDto {
+  trackingNumber?: string
+  status?: string
+  statusDescription?: string
+  estimatedDelivery?: string
+  events?: TrackingEventDto[]
+}
+
+/** Get tracking info from courier provider (if integrated). */
+export async function getShipmentTracking(shipmentId: string): Promise<TrackingInfoDto> {
+  const res = await fetch(`${API_BASE}/shipments/${shipmentId}/tracking`, { headers: getAuthHeaders() })
+  if (!res.ok) return {}
   return res.json()
 }
 
@@ -890,4 +1117,143 @@ export async function markAllNotificationsRead(): Promise<void> {
   if (!res.ok) {
     throw new Error('Failed to mark notifications as read')
   }
+}
+
+// --- Wallet & Payouts (owner/staff/super_admin/assistant_admin; requires X-Tenant-ID) ---
+
+export interface WalletBalanceDto {
+  balance: number
+}
+
+export interface DefaultPayoutDestinationDto {
+  method: string
+  destinationMasked: string | null
+}
+
+export interface PayoutDto {
+  id: string
+  amount: number
+  method: string
+  status: string
+  createdAt: string
+  processedAt?: string | null
+  failureReason?: string | null
+}
+
+export async function getWalletBalance(): Promise<WalletBalanceDto> {
+  const res = await fetch(`${API_BASE}/wallet/balance`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch wallet balance')
+  return res.json()
+}
+
+export async function getPayoutDestination(): Promise<DefaultPayoutDestinationDto | { method: null; destinationMasked: null }> {
+  const res = await fetch(`${API_BASE}/wallet/payout-destination`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch payout destination')
+  return res.json()
+}
+
+export async function setPayoutDestination(method: string, destination: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/wallet/payout-destination`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ method, destination }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { message?: string }).message || (err as string) || 'Failed to update payout destination')
+  }
+}
+
+export async function listPayouts(): Promise<PayoutDto[]> {
+  const res = await fetch(`${API_BASE}/payouts`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch payouts')
+  return res.json()
+}
+
+// --- Trust & Safety: Disputes ---
+
+export interface DisputeDto {
+  id: string
+  orderId: string
+  orderNumber: string
+  reporterUserId: string
+  reporterName: string
+  disputeType: string
+  status: string
+  description: string | null
+  deliveryProofUrl: string | null
+  sellerResponse: string | null
+  sellerRespondedAt: string | null
+  resolvedAt: string | null
+  resolvedByUserId: string | null
+  resolution: string | null
+  strikeReason: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export async function createDispute(body: {
+  orderId: string
+  disputeType: string
+  description?: string
+  deliveryProofUrl?: string
+}): Promise<DisputeDto> {
+  const res = await fetch(`${API_BASE}/disputes`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to create dispute')
+  }
+  return res.json()
+}
+
+export async function listDisputesForOrder(orderId: string): Promise<DisputeDto[]> {
+  const res = await fetch(`${API_BASE}/disputes/order/${orderId}`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch disputes for order')
+  return res.json()
+}
+
+export async function listDisputes(status?: string): Promise<DisputeDto[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '?status=open'
+  const res = await fetch(`${API_BASE}/disputes${qs}`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch disputes')
+  return res.json()
+}
+
+export async function getDispute(id: string): Promise<DisputeDto> {
+  const res = await fetch(`${API_BASE}/disputes/${id}`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch dispute')
+  return res.json()
+}
+
+export async function sellerRespondDispute(id: string, response: string): Promise<DisputeDto> {
+  const res = await fetch(`${API_BASE}/disputes/${id}/respond`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ response }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to submit response')
+  }
+  return res.json()
+}
+
+export async function resolveDispute(
+  id: string,
+  body: { resolution: string; strikeReason?: string }
+): Promise<DisputeDto> {
+  const res = await fetch(`${API_BASE}/disputes/${id}/resolve`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to resolve dispute')
+  }
+  return res.json()
 }

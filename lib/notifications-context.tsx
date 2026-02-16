@@ -5,9 +5,9 @@ import {
   listNotifications,
   markNotificationRead,
   markAllNotificationsRead,
-  type NotificationDto,
-  type NotificationType,
-} from '@/lib/api'
+} from '@/lib/actions/notifications'
+import type { NotificationDto } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 
 interface NotificationsContextType {
   notifications: NotificationDto[]
@@ -19,9 +19,16 @@ interface NotificationsContextType {
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined)
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
+  const { user, isInitialized } = useAuth()
   const [notifications, setNotifications] = useState<NotificationDto[]>([])
 
+  // Fetch only for the current user; clear when logged out so one user never sees another's notifications
   useEffect(() => {
+    if (!isInitialized) return
+    if (!user?.id) {
+      setNotifications([])
+      return
+    }
     let cancelled = false
     ;(async () => {
       try {
@@ -34,7 +41,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isInitialized, user?.id])
 
   const markAsRead = useCallback(async (id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))

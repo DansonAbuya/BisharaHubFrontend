@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
-import { listBusinesses, type BusinessDto } from '@/lib/api'
+import { listBusinesses } from '@/lib/actions/products'
+import type { BusinessDto } from '@/lib/api'
 import {
   Store,
   LayoutDashboard,

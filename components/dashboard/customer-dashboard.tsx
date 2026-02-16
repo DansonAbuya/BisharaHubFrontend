@@ -8,14 +8,9 @@ import { ShoppingBag, Heart, MapPin, Truck, Loader2, ShoppingCart, Store } from 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  listProducts,
-  listOrders,
-  listBusinesses,
-  type ProductDto,
-  type OrderDto,
-  type BusinessDto,
-} from '@/lib/api'
+import { listProducts, listBusinesses } from '@/lib/actions/products'
+import { listOrders } from '@/lib/actions/orders'
+import type { ProductDto, OrderDto, BusinessDto } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 
 import { PageHeader } from '@/components/layout/page-header'
