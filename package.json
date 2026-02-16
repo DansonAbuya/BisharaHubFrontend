@@ -5,10 +5,11 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "next build",
-    "dev": "node server-http.js",
     "dev:next": "next dev",
     "lint": "eslint .",
+    "dev": "next dev",
     "start": "next start"
+   
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
