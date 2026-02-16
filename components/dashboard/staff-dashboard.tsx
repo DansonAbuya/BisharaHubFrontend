@@ -1,32 +1,84 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { Clock, AlertCircle, Package } from 'lucide-react'
+
+import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { MOCK_ORDERS, MOCK_SHIPMENTS } from '@/lib/mock-data'
-import { Clock, CheckCircle, AlertCircle, Package } from 'lucide-react'
-import Link from 'next/link'
+import { listOrders } from '@/lib/actions/orders'
+import { listShipments } from '@/lib/actions/shipments'
+import type { OrderDto, ShipmentDto } from '@/lib/api'
+
+import { PageHeader } from '@/components/layout/page-header'
+import { PageSection } from '@/components/layout/page-section'
 
 export function StaffDashboard() {
-  const pendingOrders = MOCK_ORDERS.filter((o) => o.status === 'pending')
-  const processingOrders = MOCK_ORDERS.filter((o) => o.status === 'processing')
-  const pendingShipments = MOCK_SHIPMENTS.filter((s) => s.status === 'pending' || s.status === 'in_transit')
+  const { user } = useAuth()
+  const [orders, setOrders] = useState<OrderDto[]>([])
+  const [shipments, setShipments] = useState<ShipmentDto[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const [ordersData, shipmentsData] = await Promise.all([
+          listOrders().catch(() => [] as OrderDto[]),
+          listShipments().catch(() => [] as ShipmentDto[]),
+        ])
+        if (cancelled) return
+        setOrders(ordersData)
+        setShipments(shipmentsData)
+      } catch {
+        if (!cancelled) {
+          setOrders([])
+          setShipments([])
+        }
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const pendingOrders = useMemo(
+    () => orders.filter((o) => o.status === 'pending'),
+    [orders],
+  )
+  const processingOrders = useMemo(
+    () => orders.filter((o) => o.status === 'processing'),
+    [orders],
+  )
+  const activeShipments = useMemo(
+    () =>
+      shipments.filter((s) =>
+        ['CREATED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP'].includes(
+          s.status?.toUpperCase?.() ?? '',
+        ),
+      ),
+    [shipments],
+  )
+  const welcomeTitle = user?.businessName
+    ? `Welcome, ${user?.name ?? 'there'} – ${user.businessName} team`
+    : `Welcome, ${user?.name ?? 'there'}`
 
   return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Order Management</h1>
-          <p className="text-muted-foreground">Manage orders and shipments for today</p>
-        </div>
-        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-          Refresh
-        </Button>
-      </div>
+    <div className="space-y-6 sm:space-y-8">
+      <PageHeader
+        title={welcomeTitle}
+        description="Stay on top of orders and shipments that need your attention today."
+        actions={
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            Refresh
+          </Button>
+        }
+      />
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <PageSection>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-foreground">Pending Orders</CardTitle>
@@ -55,14 +107,15 @@ export function StaffDashboard() {
             <Package className="w-4 h-4 text-secondary-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">{pendingShipments.length}</div>
+            <div className="text-3xl font-bold text-foreground">{activeShipments.length}</div>
             <p className="text-xs text-muted-foreground mt-1">Ready to ship</p>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      </PageSection>
 
-      {/* Pending Orders */}
-      <Card className="border-border">
+      <PageSection>
+        <Card className="border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-foreground">Pending Orders</CardTitle>
@@ -108,30 +161,35 @@ export function StaffDashboard() {
             <p className="text-center text-muted-foreground py-8">No pending orders</p>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      </PageSection>
 
-      {/* Shipments */}
-      <Card className="border-border">
+      <PageSection>
+        <Card className="border-border">
         <CardHeader>
           <CardTitle className="text-foreground">Active Shipments</CardTitle>
           <CardDescription>Orders in transit or ready to ship</CardDescription>
         </CardHeader>
         <CardContent>
-          {pendingShipments.length > 0 ? (
+          {activeShipments.length > 0 ? (
             <div className="space-y-3">
-              {pendingShipments.map((shipment) => {
-                const order = MOCK_ORDERS.find((o) => o.id === shipment.orderId)
+              {activeShipments.map((shipment) => {
+                const order =
+                  orders.find((o) => o.id === shipment.orderId) ??
+                  orders.find((o) => o.orderId === shipment.orderId)
                 if (!order) return null
                 return (
                   <div key={shipment.id} className="p-4 border border-border rounded-lg">
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <p className="font-semibold text-foreground">{order.customerName}</p>
-                        <p className="text-sm text-muted-foreground">{shipment.trackingNumber}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {shipment.trackingNumber || `Shipment ${shipment.id}`}
+                        </p>
                       </div>
                       <Badge
                         className={
-                          shipment.status === 'pending'
+                          shipment.status?.toUpperCase() === 'CREATED'
                             ? 'bg-accent/30 text-accent'
                             : 'bg-primary/30 text-primary'
                         }
@@ -142,13 +200,11 @@ export function StaffDashboard() {
                     <div className="grid grid-cols-3 gap-2 text-sm mt-3">
                       <div>
                         <p className="text-muted-foreground text-xs">Carrier</p>
-                        <p className="font-medium text-foreground">{shipment.carrier}</p>
+                        <p className="font-medium text-foreground">{shipment.carrier || '—'}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground text-xs">Est. Delivery</p>
-                        <p className="font-medium text-foreground">
-                          {shipment.estimatedDelivery?.toLocaleDateString()}
-                        </p>
+                        <p className="text-muted-foreground text-xs">Status</p>
+                        <p className="font-medium text-foreground">{shipment.status}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground text-xs">Destination</p>
@@ -163,7 +219,8 @@ export function StaffDashboard() {
             <p className="text-center text-muted-foreground py-8">No active shipments</p>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      </PageSection>
     </div>
   )
 }

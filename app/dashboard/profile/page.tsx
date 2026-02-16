@@ -1,19 +1,50 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
+import { listOrders } from '@/lib/actions/orders'
+import { updateMyProfile } from '@/lib/actions/user'
+import type { OrderDto } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Mail, Phone, MapPin, Calendar } from 'lucide-react'
+import { Mail, MapPin, Phone } from 'lucide-react'
 
 export default function ProfilePage() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [nameEdit, setNameEdit] = useState(user?.name ?? '')
+  const [phoneEdit, setPhoneEdit] = useState(user?.phone ?? '')
+  const [orders, setOrders] = useState<OrderDto[]>([])
+  const [ordersLoading, setOrdersLoading] = useState(true)
+  const isCustomer = user?.role === 'customer'
+
+  useEffect(() => {
+    setNameEdit(user?.name ?? '')
+    setPhoneEdit(user?.phone ?? '')
+  }, [user?.name, user?.phone])
+
+  useEffect(() => {
+    if (!user || !isCustomer) {
+      setOrders([])
+      setOrdersLoading(false)
+      return
+    }
+    let cancelled = false
+    listOrders()
+      .then((data) => { if (!cancelled) setOrders(data) })
+      .catch(() => { if (!cancelled) setOrders([]) })
+      .finally(() => { if (!cancelled) setOrdersLoading(false) })
+    return () => { cancelled = true }
+  }, [user, isCustomer])
+
+  const orderCount = orders.length
+  const totalSpent = orders.reduce((sum, o) => sum + (o.total ?? 0), 0)
 
   const userInitials = user?.name
     .split(' ')
@@ -21,14 +52,21 @@ export default function ProfilePage() {
     .join('')
     .toUpperCase() || 'U'
 
-  const handleSave = () => {
-    setSaved(true)
-    setIsEditing(false)
-    setTimeout(() => setSaved(false), 3000)
+  const handleSave = async () => {
+    setSaveError('')
+    try {
+      await updateMyProfile({ name: nameEdit.trim(), phone: phoneEdit.trim() || null })
+      await refreshUser()
+      setSaved(true)
+      setIsEditing(false)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to update profile')
+    }
   }
 
   return (
-    <div className="p-8 space-y-8 max-w-3xl">
+    <div className="space-y-6 sm:space-y-8 max-w-3xl">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -53,6 +91,11 @@ export default function ProfilePage() {
           </AlertDescription>
         </Alert>
       )}
+      {saveError && (
+        <Alert variant="destructive">
+          <AlertDescription>{saveError}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Profile Header */}
       <Card className="border-border">
@@ -66,9 +109,14 @@ export default function ProfilePage() {
             <div className="flex-1">
               <h2 className="text-2xl font-bold text-foreground">{user?.name}</h2>
               <p className="text-muted-foreground">{user?.email}</p>
-              <Badge className="mt-2 bg-primary/30 text-primary capitalize">
-                {user?.role} Account
-              </Badge>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge className="bg-primary/30 text-primary capitalize">
+                  {user?.role} Account
+                </Badge>
+                {user?.businessName && (
+                  <span className="text-sm text-muted-foreground">{user.businessName}</span>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
@@ -86,7 +134,8 @@ export default function ProfilePage() {
               <div>
                 <label className="text-sm font-medium text-foreground">Full Name</label>
                 <Input
-                  defaultValue={user?.name}
+                  value={nameEdit}
+                  onChange={(e) => setNameEdit(e.target.value)}
                   className="mt-2 h-10"
                 />
               </div>
@@ -94,10 +143,23 @@ export default function ProfilePage() {
                 <label className="text-sm font-medium text-foreground">Email Address</label>
                 <Input
                   type="email"
-                  defaultValue={user?.email}
+                  value={user?.email ?? ''}
                   disabled
                   className="mt-2 h-10"
                 />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Phone (for WhatsApp)</label>
+                <Input
+                  type="tel"
+                  placeholder="e.g. +254712345678 or 0712345678"
+                  value={phoneEdit}
+                  onChange={(e) => setPhoneEdit(e.target.value)}
+                  className="mt-2 h-10"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Add your WhatsApp number to use our WhatsApp assistant and get order updates.
+                </p>
               </div>
               <div className="flex gap-2 pt-4">
                 <Button
@@ -126,149 +188,75 @@ export default function ProfilePage() {
                 <span className="text-foreground">{user?.email}</span>
               </div>
               <div className="flex items-center gap-3 py-3 border-t border-border">
-                <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground w-24">Member Since</span>
-                <span className="text-foreground">January 2025</span>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Shipping Address */}
-      <Card className="border-border">
-        <CardHeader>
-          <CardTitle className="text-foreground">Shipping Address</CardTitle>
-          <CardDescription>Default delivery address</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isEditing ? (
-            <>
-              <div>
-                <label className="text-sm font-medium text-foreground">Street Address</label>
-                <Input
-                  placeholder="Enter street address"
-                  defaultValue="123 Market Street"
-                  className="mt-2 h-10"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-foreground">City</label>
-                  <Input
-                    placeholder="Enter city"
-                    defaultValue="Nairobi"
-                    className="mt-2 h-10"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-foreground">Postal Code</label>
-                  <Input
-                    placeholder="Enter postal code"
-                    defaultValue="00100"
-                    className="mt-2 h-10"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Country</label>
-                <Input
-                  placeholder="Enter country"
-                  defaultValue="Kenya"
-                  className="mt-2 h-10"
-                />
-              </div>
-            </>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-start gap-3 py-3">
-                <MapPin className="w-4 h-4 text-muted-foreground mt-1" />
-                <div>
-                  <p className="font-medium text-foreground">123 Market Street</p>
-                  <p className="text-sm text-muted-foreground">Nairobi, 00100</p>
-                  <p className="text-sm text-muted-foreground">Kenya</p>
-                </div>
-              </div>
-              <Badge className="bg-primary/30 text-primary">Default Address</Badge>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Contact Information */}
-      <Card className="border-border">
-        <CardHeader>
-          <CardTitle className="text-foreground">Contact Information</CardTitle>
-          <CardDescription>How we can reach you</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isEditing ? (
-            <>
-              <div>
-                <label className="text-sm font-medium text-foreground">Phone Number</label>
-                <Input
-                  placeholder="Enter phone number"
-                  defaultValue="+254 712 345 678"
-                  className="mt-2 h-10"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Alternative Phone</label>
-                <Input
-                  placeholder="Enter alternative phone"
-                  className="mt-2 h-10"
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-3 py-3">
                 <Phone className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground w-32">Phone</span>
-                <span className="text-foreground">+254 712 345 678</span>
-              </div>
-              <div className="flex items-center gap-3 py-3 border-t border-border">
-                <Mail className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground w-32">Email</span>
-                <span className="text-foreground">{user?.email}</span>
+                <span className="text-sm font-medium text-foreground w-24">Phone</span>
+                <span className="text-foreground">{user?.phone || 'Not set'}</span>
               </div>
             </>
           )}
         </CardContent>
       </Card>
 
-      {/* Order Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-foreground">Total Orders</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">12</div>
-            <p className="text-xs text-muted-foreground mt-1">All time</p>
-          </CardContent>
-        </Card>
+      {/* Delivery */}
+      <Card className="border-border">
+        <CardHeader>
+          <CardTitle className="text-foreground">Delivery</CardTitle>
+          <CardDescription>Where to send your orders</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-3 py-2">
+            <MapPin className="w-4 h-4 text-muted-foreground mt-1 shrink-0" />
+            <p className="text-sm text-muted-foreground">
+              You can add a delivery address when placing an order at checkout.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-foreground">Total Spent</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-primary">KES 485K</div>
-            <p className="text-xs text-muted-foreground mt-1">Cumulative</p>
-          </CardContent>
-        </Card>
+      {/* Contact / WhatsApp */}
+      <Card className="border-border">
+        <CardHeader>
+          <CardTitle className="text-foreground">Contact & WhatsApp</CardTitle>
+          <CardDescription>
+            Your phone links your account to our WhatsApp assistant. Add it in Personal Information above.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3 py-2">
+            <Phone className="w-4 h-4 text-muted-foreground" />
+            <span className="text-foreground">{user?.phone || 'No phone set – add one to use WhatsApp'}</span>
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-foreground">Member Since</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-foreground">365 days</div>
-            <p className="text-xs text-muted-foreground mt-1">Loyal customer</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Order Statistics (customers; from API) */}
+      {isCustomer && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-foreground">Total Orders</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-foreground">
+                {ordersLoading ? '—' : orderCount}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">All time</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-foreground">Total Spent</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-primary">
+                {ordersLoading ? '—' : `KES ${(totalSpent / 1000).toFixed(0)}K`}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Cumulative</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,66 +1,68 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { addStaff, listStaff } from '@/lib/actions/admin'
 import { UserPlus, Mail, Phone, Clock } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 
 interface StaffMember {
   id: string
   name: string
   email: string
-  phone: string
-  role: 'supervisor' | 'operator' | 'delivery'
+  phone?: string
+  role: string
   joinDate: Date
   status: 'active' | 'inactive'
 }
 
-const MOCK_STAFF: StaffMember[] = [
-  {
-    id: 'staff-1',
-    name: 'Kofi Mensah',
-    email: 'kofi@biashara.com',
-    phone: '+233 20 123 4567',
-    role: 'supervisor',
-    joinDate: new Date('2025-06-15'),
-    status: 'active',
-  },
-  {
-    id: 'staff-2',
-    name: 'Grace Asante',
-    email: 'grace@biashara.com',
-    phone: '+233 20 987 6543',
-    role: 'operator',
-    joinDate: new Date('2025-08-01'),
-    status: 'active',
-  },
-  {
-    id: 'staff-3',
-    name: 'Benjamin Owusu',
-    email: 'benjamin@biashara.com',
-    phone: '+233 20 555 1234',
-    role: 'delivery',
-    joinDate: new Date('2025-09-10'),
-    status: 'active',
-  },
-]
-
 export default function StaffManagementPage() {
   const { user } = useAuth()
-  const [staff, setStaff] = useState<StaffMember[]>(MOCK_STAFF)
+  const [staff, setStaff] = useState<StaffMember[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [addName, setAddName] = useState('')
+  const [addEmail, setAddEmail] = useState('')
+  const [addError, setAddError] = useState('')
+  const [addSuccess, setAddSuccess] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loadingStaff, setLoadingStaff] = useState(true)
 
-  if (user?.role !== 'owner') {
+  useEffect(() => {
+    if (!(user?.role === 'owner' || user?.role === 'super_admin')) {
+      setLoadingStaff(false)
+      return
+    }
+    listStaff()
+      .then((users) =>
+        setStaff(
+          users.map((u) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            joinDate: new Date(),
+            status: 'active' as const,
+          })),
+        ),
+      )
+      .catch(() => setStaff([]))
+      .finally(() => setLoadingStaff(false))
+  }, [user?.role])
+
+  const canManageStaff = user?.role === 'owner' || user?.role === 'super_admin'
+  if (!canManageStaff) {
     return (
-      <div className="p-8">
+      <div>
         <Card className="border-border">
           <CardContent className="py-16 text-center">
-            <p className="text-foreground font-medium">This page is only available to business owners.</p>
+            <p className="text-foreground font-medium">This page is only available to business owners and platform admins.</p>
           </CardContent>
         </Card>
       </div>
@@ -81,13 +83,46 @@ export default function StaffManagementPage() {
         return 'bg-accent/30 text-accent'
       case 'delivery':
         return 'bg-secondary/30 text-foreground'
+      case 'staff':
+        return 'bg-primary/30 text-primary'
       default:
         return 'bg-muted text-muted-foreground'
     }
   }
 
+  const handleAddStaff = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAddError('')
+    setAddSuccess('')
+    setIsSubmitting(true)
+    try {
+      const newStaff = await addStaff({ name: addName, email: addEmail })
+      setStaff((prev) => [
+        ...prev,
+        {
+          id: newStaff.id,
+          name: newStaff.name,
+          email: newStaff.email,
+          role: 'staff',
+          joinDate: new Date(),
+          status: 'active' as const,
+        },
+      ])
+      setAddName('')
+      setAddEmail('')
+      setIsDialogOpen(false)
+      setAddSuccess(
+        'Staff member added. A temporary password has been sent to their email; they can log in and change it. 2FA is always on for staff.',
+      )
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to add staff')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -138,6 +173,12 @@ export default function StaffManagementPage() {
         </Card>
       </div>
 
+      {addSuccess && (
+        <Alert className="border-primary/50 bg-primary/10">
+          <AlertDescription>{addSuccess}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Search */}
       <Card className="border-border">
         <CardHeader>
@@ -168,10 +209,12 @@ export default function StaffManagementPage() {
                         <Mail className="w-4 h-4" />
                         {member.email}
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Phone className="w-4 h-4" />
-                        {member.phone}
-                      </div>
+                      {member.phone && (
+                        <div className="flex items-center gap-1">
+                          <Phone className="w-4 h-4" />
+                          {member.phone}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -213,42 +256,68 @@ export default function StaffManagementPage() {
       </Card>
 
       {/* Add Staff Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open)
+        if (!open) {
+          setAddError('')
+          setAddName('')
+          setAddEmail('')
+        } else {
+          setAddError('')
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-foreground">Add Staff Member</DialogTitle>
-            <DialogDescription>Fill in the details to add a new team member</DialogDescription>
+            <DialogDescription>A temporary password will be sent to their email. They must log in and change it; 2FA is always on for staff.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={handleAddStaff} className="space-y-4">
+            {addError && (
+              <Alert variant="destructive">
+                <AlertDescription>{addError}</AlertDescription>
+              </Alert>
+            )}
             <div>
               <label className="text-sm font-medium text-foreground">Full Name</label>
-              <Input placeholder="Enter full name" className="mt-1 h-10" />
+              <Input
+                placeholder="Enter full name"
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                className="mt-1 h-10"
+                required
+              />
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Email</label>
-              <Input type="email" placeholder="Enter email" className="mt-1 h-10" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-foreground">Phone</label>
-              <Input placeholder="Enter phone number" className="mt-1 h-10" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-foreground">Role</label>
-              <select className="w-full h-10 mt-1 px-3 rounded-md border border-border bg-background">
-                <option>Supervisor</option>
-                <option>Operator</option>
-                <option>Delivery</option>
-              </select>
+              <Input
+                type="email"
+                placeholder="Enter email"
+                value={addEmail}
+                onChange={(e) => setAddEmail(e.target.value)}
+                className="mt-1 h-10"
+                required
+              />
             </div>
             <div className="flex gap-2 pt-4">
-              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setIsDialogOpen(false)}>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground">
-                Add Member
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Spinner className="w-4 h-4 mr-2" />
+                    Adding...
+                  </>
+                ) : (
+                  'Add Member'
+                )}
               </Button>
             </div>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
