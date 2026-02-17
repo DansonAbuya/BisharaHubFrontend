@@ -125,6 +125,18 @@ export async function refreshToken(refreshToken: string): Promise<LoginResponse>
   return res.json()
 }
 
+/** Stateless logout endpoint – backend just returns 204; errors are usually safe to ignore. */
+export async function logout(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    })
+  } catch {
+    // Ignore network/API errors on logout; client will still clear its session.
+  }
+}
+
 /** Forgot password: request reset link by email. Available to all users. */
 export async function forgotPassword(email: string): Promise<void> {
   const res = await fetch(`${API_BASE}/auth/forgot-password`, {

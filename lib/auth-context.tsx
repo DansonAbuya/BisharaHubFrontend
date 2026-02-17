@@ -190,6 +190,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const cancelTwoFactor = () => setPendingTwoFactor(null)
 
   const logout = useCallback(() => {
+    // Fire-and-forget backend logout when API is configured; we still clear local state
+    // even if the request fails so users are always logged out from the frontend.
+    if (USE_API) {
+      api.logout().catch(() => {})
+    }
     setUser(null)
     setPendingTwoFactor(null)
     sessionStorage.removeItem('biashara_user')
