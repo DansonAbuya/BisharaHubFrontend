@@ -1065,8 +1065,13 @@ export async function getShipmentTracking(shipmentId: string): Promise<TrackingI
   return res.json()
 }
 
-/** Upload product image to R2 (owner/staff only). Returns { url }. */
+const MAX_PRODUCT_IMAGE_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB
+
+/** Upload product image to R2 (owner/staff only). Returns { url }. Max 20 MB. */
 export async function uploadProductImage(file: File): Promise<{ url: string }> {
+  if (file.size > MAX_PRODUCT_IMAGE_SIZE_BYTES) {
+    throw new Error('Image must be 20 MB or smaller')
+  }
   const formData = new FormData()
   formData.append('file', file)
   const token = typeof window !== 'undefined' ? sessionStorage.getItem('biashara_token') : null
