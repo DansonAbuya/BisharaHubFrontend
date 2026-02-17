@@ -8,8 +8,8 @@
     "dev:next": "next dev",
     "lint": "eslint .",
     "dev": "next dev",
-    "start": "next start"
-   
+    "start": "next start",
+    "generate:action-key": "node -e \"console.log(require('crypto').randomBytes(16).toString('base64'))\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
