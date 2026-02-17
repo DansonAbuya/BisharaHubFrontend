@@ -87,7 +87,7 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (isInitialized && !user) {
-      router.push('/login')
+      router.push('/')
     }
   }, [user, isInitialized, router])
 

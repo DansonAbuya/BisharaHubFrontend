@@ -26,7 +26,7 @@ export function TopNavBar({ onMenuClick }: TopNavBarProps) {
 
   const handleLogout = () => {
     logout()
-    router.push('/login')
+    router.push('/')
   }
 
   const userInitials =

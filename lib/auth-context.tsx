@@ -234,7 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       inactivityTimerRef.current = setTimeout(() => {
         logout()
-        router.push('/login?reason=inactivity')
+        router.push('/')
       }, INACTIVITY_TIMEOUT_MS)
     }
 
