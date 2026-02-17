@@ -112,11 +112,19 @@ export default function ProductsPage() {
     setIsAddOpen(true)
   }
 
+  const MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setError('Image must be 20 MB or smaller')
+      e.target.value = ''
+      return
+    }
     try {
       setUploadingImage(true)
+      setError(null)
       const formData = new FormData()
       formData.append('file', file)
       const { url } = await uploadProductImage(formData)

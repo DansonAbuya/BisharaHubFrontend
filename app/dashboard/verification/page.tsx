@@ -64,11 +64,17 @@ export default function VerificationPage() {
     load()
   }, [isOwner])
 
+  const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!isOwner) return
     const urlTrimmed = uploadUrl.trim()
     if (uploadFile) {
+      if (uploadFile.size > MAX_FILE_SIZE_BYTES) {
+        setError('File must be 20 MB or smaller')
+        return
+      }
       setUploading(true)
       setError(null)
       try {
@@ -270,6 +276,7 @@ export default function VerificationPage() {
                       onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
                       className="mt-1 block w-full text-sm text-foreground file:mr-4 file:rounded file:border-0 file:bg-primary file:px-4 file:py-2 file:text-primary-foreground"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">Image or PDF. Max 20 MB.</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-foreground">Or document URL</label>

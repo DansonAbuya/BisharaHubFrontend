@@ -90,7 +90,13 @@ export async function deleteProduct(id: string): Promise<void> {
   }
 }
 
+const MAX_PRODUCT_IMAGE_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB
+
 export async function uploadProductImage(formData: FormData): Promise<{ url: string }> {
+  const file = formData.get('file')
+  if (file instanceof File && file.size > MAX_PRODUCT_IMAGE_SIZE_BYTES) {
+    throw new Error('Image must be 20 MB or smaller')
+  }
   const res = await backendFetch('/products/upload-image', {
     method: 'POST',
     body: formData,
