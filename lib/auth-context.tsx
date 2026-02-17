@@ -201,7 +201,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionStorage.removeItem('biashara_token')
     sessionStorage.removeItem('biashara_refresh_token')
     clearAuthCookie().catch(() => {})
-  }, [])
+    // Always redirect to home so user is taken off dashboard/protected pages (manual and inactivity logout).
+    router.replace('/')
+  }, [router])
 
   const refreshUser = async () => {
     if (!USE_API) return
@@ -233,8 +235,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         inactivityTimerRef.current = null
       }
       inactivityTimerRef.current = setTimeout(() => {
-        logout()
-        router.push('/')
+        logout() // clears session and redirects to home via router.replace('/')
       }, INACTIVITY_TIMEOUT_MS)
     }
 

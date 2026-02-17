@@ -18,7 +18,14 @@ self.addEventListener('fetch', (event) => {
   if (event.request.mode !== 'navigate') return
   event.respondWith(
     fetch(event.request).catch(() =>
-      caches.match(event.request).then((r) => r || caches.match('/'))
+      caches.match(event.request).then((r) => r || caches.match('/')).then((r) =>
+        // respondWith() requires a Response; never resolve to undefined
+        r ||
+        new Response(
+          '<!DOCTYPE html><html><body><p>You are offline.</p><a href="/">Retry</a></body></html>',
+          { headers: { 'Content-Type': 'text/html' } }
+        )
+      )
     )
   )
 })
