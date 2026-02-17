@@ -43,7 +43,7 @@ export default function AdminLoginPage() {
           router.push('/dashboard')
         } else {
           logout()
-          setError('Access denied. This area is for administrators only. Use the main site to sign in.')
+          router.push('/')
         }
       }
     } catch (err) {
@@ -64,7 +64,7 @@ export default function AdminLoginPage() {
         router.push('/dashboard')
       } else if (user) {
         logout()
-        setError('Access denied. This area is for administrators only.')
+        router.push('/')
       } else {
         setError('Invalid or expired code')
       }

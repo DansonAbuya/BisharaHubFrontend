@@ -85,7 +85,7 @@ export default function AdminOwnersPage() {
       setError(message)
       if (message.includes('Session expired') || message.includes('Not signed in') || message.includes('sign in again')) {
         logout()
-        router.push('/admin/login')
+        router.push('/')
       }
     } finally {
       setIsSubmitting(false)
