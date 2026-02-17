@@ -37,7 +37,7 @@ export function TopNavBar({ onMenuClick }: TopNavBarProps) {
       .toUpperCase() || 'U'
 
   return (
-    <header className="border-b border-border bg-card px-3 sm:px-6 py-3 sm:py-3 flex items-center justify-between gap-2 safe-area-pt">
+    <header className="shrink-0 border-b border-border bg-card px-3 sm:px-6 py-3 sm:py-3 flex items-center justify-between gap-2 safe-area-pt">
       <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
         <Button
           variant="ghost"

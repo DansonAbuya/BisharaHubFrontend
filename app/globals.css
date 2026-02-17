@@ -147,11 +147,28 @@
   padding-right: env(safe-area-inset-right, 0);
 }
 
+/* Scrollable area on mobile (dashboard main, etc.) – enables touch scrolling on iOS */
+.scrollable-touch {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   body {
     @apply bg-background text-foreground;
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 }
