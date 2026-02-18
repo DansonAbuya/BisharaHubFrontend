@@ -3,6 +3,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/**
+ * Global design tokens
+ * ------------------------------------------------------------------
+ * This file is the single source of truth for:
+ * - Color system (background, foreground, primary, accent, etc.)
+ * - Radii
+ * - Sidebar theming
+ *
+ * Spacing & layout guidelines (used across pages):
+ * - Page container: max-w-7xl mx-auto px-4 sm:px-6
+ * - Dashboard vertical padding: py-6 sm:py-8
+ * - Marketing/auth vertical padding: py-8 sm:py-10
+ * - Section spacing: space-y-6 sm:space-y-8 (dashboards),
+ *   space-y-8 sm:space-y-10 (marketing/auth)
+ * - Card padding: p-4 sm:p-6 or CardHeader/CardContent with py-4 sm:py-5
+ */
+
 :root {
   --background: oklch(0.98 0.002 70);
   --foreground: oklch(0.15 0.01 50);
@@ -18,8 +35,9 @@
   --muted-foreground: oklch(0.55 0.02 50);
   --accent: oklch(0.75 0.18 30);
   --accent-foreground: oklch(1 0 0);
+  /* Ensure destructive foreground has sufficient contrast */
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.15 0.01 50);
   --border: oklch(0.92 0.01 50);
   --input: oklch(1 0 0);
   --ring: oklch(0.52 0.215 137);
@@ -55,7 +73,7 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.269 0 0);
   --input: oklch(0.269 0 0);
   --ring: oklch(0.439 0 0);
@@ -115,11 +133,42 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Safe area for notched devices (PWA / mobile) */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0);
+}
+.safe-area-pl {
+  padding-left: env(safe-area-inset-left, 0);
+}
+.safe-area-pr {
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* Scrollable area on mobile (dashboard main, etc.) – enables touch scrolling on iOS */
+.scrollable-touch {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   body {
     @apply bg-background text-foreground;
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 }
