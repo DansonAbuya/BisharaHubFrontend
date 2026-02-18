@@ -43,7 +43,10 @@ export default function VerificationPage() {
   const isOwner = user?.role === 'owner'
 
   const load = async () => {
-    if (!isOwner) return
+    if (!isOwner) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError(null)
     try {

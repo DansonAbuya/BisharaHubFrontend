@@ -84,6 +84,7 @@ function ShopPageContent() {
     'SELLER_SELF',
   )
   const [shippingFee, setShippingFee] = useState(0)
+  const [paymentMethod, setPaymentMethod] = useState<'M-Pesa' | 'Cash'>('M-Pesa')
 
   const shopsByTier = useMemo(() => groupShopsByTier(shops), [shops])
   const selectedShop = useMemo(() => shops.find((s) => s.id === selectedShopId), [shops, selectedShopId])
@@ -237,6 +238,7 @@ function ShopPageContent() {
     setCreatedOrder(null)
     setPaymentInitiated(false)
     setMpesaPhone('')
+    setPaymentMethod('M-Pesa')
     setCheckoutOpen(true)
   }
 
@@ -262,6 +264,7 @@ function ShopPageContent() {
         shippingAddress: shippingAddress.trim() || undefined,
         deliveryMode,
         shippingFee,
+        paymentMethod,
       })
       setCreatedOrder(order)
       setCart([])
@@ -751,6 +754,29 @@ function ShopPageContent() {
                     </label>
                   </div>
                 </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-2">Payment method</p>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 border border-border rounded-md px-3 py-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        checked={paymentMethod === 'M-Pesa'}
+                        onChange={() => setPaymentMethod('M-Pesa')}
+                      />
+                      <span className="text-sm text-foreground">M-Pesa (pay now)</span>
+                    </label>
+                    <label className="flex items-center gap-3 border border-border rounded-md px-3 py-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        checked={paymentMethod === 'Cash'}
+                        onChange={() => setPaymentMethod('Cash')}
+                      />
+                      <span className="text-sm text-foreground">Cash (pay on delivery; seller confirms)</span>
+                    </label>
+                  </div>
+                </div>
                 {orderError && (
                   <p className="text-sm text-destructive">{orderError}</p>
                 )}
@@ -774,21 +800,31 @@ function ShopPageContent() {
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle className="text-foreground">Complete your order — Pay with M-Pesa</DialogTitle>
+                <DialogTitle className="text-foreground">
+                  {createdOrder?.paymentMethod === 'Cash' ? 'Order placed — Pay in cash' : 'Complete your order — Pay with M-Pesa'}
+                </DialogTitle>
                 <DialogDescription>
-                  Your order is placed. Pay now to complete it. You will receive an M-Pesa prompt on your phone.
+                  {createdOrder?.paymentMethod === 'Cash'
+                    ? 'Your order is placed. Pay the seller in cash when you receive. They will confirm payment in the system.'
+                    : 'Your order is placed. Pay now to complete it. You will receive an M-Pesa prompt on your phone.'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0">
                 {createdOrder && (
                   <div className="rounded-lg border border-border bg-muted/30 p-3">
-                    <p className="text-sm font-medium text-foreground">Amount to pay</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {createdOrder.paymentMethod === 'Cash' ? 'Amount to pay (in cash)' : 'Amount to pay'}
+                    </p>
                     <p className="text-2xl font-bold text-primary mt-1">
                       KES {(Number(createdOrder.total) / 1000).toFixed(0)}K
                     </p>
                   </div>
                 )}
-                {!paymentInitiated ? (
+                {createdOrder?.paymentMethod === 'Cash' ? (
+                  <p className="text-sm text-muted-foreground">
+                    The seller will mark this order as paid once you pay in cash. You can track it under My orders.
+                  </p>
+                ) : !paymentInitiated ? (
                   <div>
                     <label className="text-sm font-medium text-foreground">M-Pesa phone number</label>
                     <Input
@@ -814,38 +850,46 @@ function ShopPageContent() {
                 )}
               </div>
               <DialogFooter>
-                <Button
-                  variant="ghost"
-                  className="text-muted-foreground"
-                  onClick={() => {
-                    setCheckoutStep('review')
-                    setCreatedOrder(null)
-                    setPaymentInitiated(false)
-                    setCheckoutOpen(false)
-                    window.location.href = '/dashboard/orders'
-                  }}
-                  disabled={initiatingPayment}
-                >
-                  I&apos;ll pay later
-                </Button>
-                {!paymentInitiated ? (
-                  <Button onClick={handleInitiatePayment} disabled={initiatingPayment}>
-                    {initiatingPayment ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <Smartphone className="w-4 h-4 mr-2" />
-                        Pay now to complete order
-                      </>
-                    )}
-                  </Button>
-                ) : (
+                {createdOrder?.paymentMethod === 'Cash' ? (
                   <Button onClick={handleViewOrders}>
                     View my orders
                   </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="text-muted-foreground"
+                      onClick={() => {
+                        setCheckoutStep('review')
+                        setCreatedOrder(null)
+                        setPaymentInitiated(false)
+                        setCheckoutOpen(false)
+                        window.location.href = '/dashboard/orders'
+                      }}
+                      disabled={initiatingPayment}
+                    >
+                      I&apos;ll pay later
+                    </Button>
+                    {!paymentInitiated ? (
+                      <Button onClick={handleInitiatePayment} disabled={initiatingPayment}>
+                        {initiatingPayment ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Smartphone className="w-4 h-4 mr-2" />
+                            Pay now to complete order
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button onClick={handleViewOrders}>
+                        View my orders
+                      </Button>
+                    )}
+                  </>
                 )}
               </DialogFooter>
             </>

@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { listOrders, initiatePayment, cancelOrder, getReviewForOrder, createReview } from '@/lib/actions/orders'
+import { listOrders, initiatePayment, confirmPayment, cancelOrder, getReviewForOrder, createReview } from '@/lib/actions/orders'
 import { getInvoiceHtml } from '@/lib/actions/reports'
 import { createDispute } from '@/lib/actions/disputes'
 import type { OrderDto, OrderReviewDto } from '@/lib/api'
@@ -55,6 +55,7 @@ export default function OrdersPage() {
   const [disputeError, setDisputeError] = useState<string | null>(null)
   const [disputeSuccess, setDisputeSuccess] = useState(false)
   const [invoiceLoadingOrderId, setInvoiceLoadingOrderId] = useState<string | null>(null)
+  const [confirmingCashOrderId, setConfirmingCashOrderId] = useState<string | null>(null)
 
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
@@ -142,7 +143,7 @@ export default function OrdersPage() {
     (order.paymentStatus ?? 'pending') === 'pending' &&
     order.id &&
     order.paymentId &&
-    (isCustomerView ? order.customerId === user?.id : false)
+    (isCustomerView ? order.customerId === user?.id && order.paymentMethod !== 'Cash' : false)
 
   const normalizeMpesaPhone = (raw: string): string => {
     const digits = raw.replace(/\D/g, '')
@@ -197,6 +198,18 @@ export default function OrdersPage() {
 
   const handleRefreshOrders = () => {
     listOrders().then(setOrders).catch(() => {})
+  }
+
+  const handleConfirmCashPayment = async (orderId: string, paymentId: string) => {
+    setConfirmingCashOrderId(orderId)
+    try {
+      await confirmPayment(orderId, paymentId)
+      await listOrders().then(setOrders)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to confirm cash payment')
+    } finally {
+      setConfirmingCashOrderId(null)
+    }
   }
 
   const canLeaveReview = (order: OrderDto | null) => {
@@ -504,6 +517,19 @@ export default function OrdersPage() {
                     >
                       <Smartphone className="w-4 h-4 mr-2" />
                       Pay now
+                    </Button>
+                  )}
+                  {canActOnBehalf && order.status === 'pending' && (order.paymentStatus ?? 'pending') === 'pending' && order.paymentMethod === 'Cash' && order.paymentId && (
+                    <Button
+                      size="sm"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                      disabled={confirmingCashOrderId === order.id}
+                      onClick={() => handleConfirmCashPayment(order.id, order.paymentId!)}
+                    >
+                      {confirmingCashOrderId === order.id ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : null}
+                      {confirmingCashOrderId === order.id ? 'Confirming…' : 'Confirm cash payment'}
                     </Button>
                   )}
                   {isCustomerView && order.customerId === user?.id && order.status !== 'cancelled' && order.status !== 'pending' && (

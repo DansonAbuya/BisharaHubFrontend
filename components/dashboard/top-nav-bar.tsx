@@ -25,8 +25,7 @@ export function TopNavBar({ onMenuClick }: TopNavBarProps) {
   const { unreadCount } = useNotifications()
 
   const handleLogout = () => {
-    logout()
-    router.push('/')
+    void logout()
   }
 
   const userInitials =
