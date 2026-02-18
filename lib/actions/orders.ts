@@ -20,6 +20,8 @@ export async function createOrder(body: {
   shippingAddress?: string
   deliveryMode: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP'
   shippingFee?: number
+  /** 'M-Pesa' or 'Cash'. Cash: seller confirms payment in the system. */
+  paymentMethod?: 'M-Pesa' | 'Cash'
 }): Promise<OrderDto> {
   const res = await backendFetch('/orders', {
     method: 'POST',

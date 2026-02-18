@@ -37,7 +37,7 @@ interface AuthContextType {
   /** Complete login/register after 2FA code is entered. Returns the authenticated user on success. */
   verifyCode: (email: string, code: string, options?: { forceUseApi?: boolean }) => Promise<AuthUser | null>
   cancelTwoFactor: () => void
-  logout: () => void
+  logout: () => void | Promise<void>
   /** Reload current user from API (e.g. after updating profile/phone). */
   refreshUser: () => Promise<void>
 }
@@ -189,19 +189,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const cancelTwoFactor = () => setPendingTwoFactor(null)
 
-  const logout = useCallback(() => {
-    // Fire-and-forget backend logout when API is configured; we still clear local state
-    // even if the request fails so users are always logged out from the frontend.
-    if (USE_API) {
-      api.logout().catch(() => {})
-    }
+  const logout = useCallback(async () => {
+    // Clear local state first so UI updates immediately; then clear server cookie before
+    // redirect so the next page load does not restore session (fixes staff/customer stuck on verification).
     setUser(null)
     setPendingTwoFactor(null)
     sessionStorage.removeItem('biashara_user')
     sessionStorage.removeItem('biashara_token')
     sessionStorage.removeItem('biashara_refresh_token')
-    clearAuthCookie().catch(() => {})
-    // Always redirect to home so user is taken off dashboard/protected pages (manual and inactivity logout).
+    if (USE_API) {
+      api.logout().catch(() => {})
+    }
+    await clearAuthCookie().catch(() => {})
     router.replace('/')
   }, [router])
 
