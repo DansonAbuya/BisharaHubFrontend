@@ -13,26 +13,30 @@ export interface PendingPayment {
 }
 
 export async function listPendingPayments(): Promise<PendingPayment[]> {
-  const res = await backendFetch('/reconciliation/pending-payments')
-  if (!res.ok) throw new Error('Failed to fetch pending payments')
-  const data = await res.json()
-  return (data ?? []).map((p: {
-    paymentId: string
-    orderId: string
-    orderNumber: string
-    amount: number
-    customerName: string
-    paymentMethod: string
-    createdAt: string
-  }) => ({
-    paymentId: p.paymentId,
-    orderId: p.orderId,
-    orderNumber: p.orderNumber,
-    amount: Number(p.amount ?? 0),
-    customerName: p.customerName ?? '—',
-    paymentMethod: p.paymentMethod ?? 'M-Pesa',
-    createdAt: p.createdAt ?? '',
-  }))
+  try {
+    const res = await backendFetch('/reconciliation/pending-payments')
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data ?? []).map((p: {
+      paymentId: string
+      orderId: string
+      orderNumber: string
+      amount: number
+      customerName: string
+      paymentMethod: string
+      createdAt: string
+    }) => ({
+      paymentId: p.paymentId,
+      orderId: p.orderId,
+      orderNumber: p.orderNumber,
+      amount: Number(p.amount ?? 0),
+      customerName: p.customerName ?? '—',
+      paymentMethod: p.paymentMethod ?? 'M-Pesa',
+      createdAt: p.createdAt ?? '',
+    }))
+  } catch {
+    return []
+  }
 }
 
 export async function matchReceipt(
