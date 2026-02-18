@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { listOrders, initiatePayment, confirmPayment, cancelOrder, getReviewForOrder, createReview } from '@/lib/actions/orders'
+import { listOrders, initiatePayment, confirmPayment, cancelOrder, getReviewForOrder, createReview, updateOrderPaymentMethod } from '@/lib/actions/orders'
 import { getInvoiceHtml } from '@/lib/actions/reports'
 import { createDispute } from '@/lib/actions/disputes'
 import type { OrderDto, OrderReviewDto } from '@/lib/api'
@@ -56,6 +56,7 @@ export default function OrdersPage() {
   const [disputeSuccess, setDisputeSuccess] = useState(false)
   const [invoiceLoadingOrderId, setInvoiceLoadingOrderId] = useState<string | null>(null)
   const [confirmingCashOrderId, setConfirmingCashOrderId] = useState<string | null>(null)
+  const [updatingPaymentMethodOrderId, setUpdatingPaymentMethodOrderId] = useState<string | null>(null)
 
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
@@ -184,14 +185,22 @@ export default function OrdersPage() {
   }
 
   const handleInitiatePayment = async () => {
-    if (!payOrder?.id || !mpesaPhone.trim()) {
+    if (!payOrder || !getOrderId(payOrder) || !mpesaPhone.trim()) {
       setPaymentError('Enter your M-Pesa phone number (e.g. 07XXXXXXXX or 254XXXXXXXXX)')
+      return
+    }
+    if (payOrder.paymentMethod === 'Cash') {
+      setPaymentError('This order is pay-by-cash. The seller will confirm when you pay in cash.')
       return
     }
     setInitiatingPayment(true)
     setPaymentError('')
     try {
-      await initiatePayment(payOrder.id, { phoneNumber: normalizeMpesaPhone(mpesaPhone.trim()) })
+      const result = await initiatePayment(getOrderId(payOrder), { phoneNumber: normalizeMpesaPhone(mpesaPhone.trim()) })
+      if (!result.ok) {
+        setPaymentError(result.error)
+        return
+      }
       setPaymentInitiated(true)
     } catch (e) {
       setPaymentError(e instanceof Error ? e.message : 'Failed to send M-Pesa prompt')
@@ -202,6 +211,22 @@ export default function OrdersPage() {
 
   const handleRefreshOrders = () => {
     listOrders().then(setOrders).catch(() => {})
+  }
+
+  const handleUpdatePaymentMethod = async (orderId: string, paymentId: string, newMethod: 'M-Pesa' | 'Cash') => {
+    setUpdatingPaymentMethodOrderId(orderId)
+    setError(null)
+    try {
+      await updateOrderPaymentMethod(orderId, paymentId, newMethod)
+      const updatedList = await listOrders()
+      setOrders(updatedList)
+      const updated = updatedList.find((o) => getOrderId(o) === orderId)
+      if (selectedOrder && getOrderId(selectedOrder) === orderId && updated) setSelectedOrder(updated)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update payment method')
+    } finally {
+      setUpdatingPaymentMethodOrderId(null)
+    }
   }
 
   const handleConfirmCashPayment = async (orderId: string, paymentId: string) => {
@@ -534,6 +559,36 @@ export default function OrdersPage() {
                       <Smartphone className="w-4 h-4 mr-2" />
                       Pay now
                     </Button>
+                  )}
+                  {isCustomerView && order.customerId === user?.id && order.status === 'pending' && (order.paymentStatus ?? 'pending') === 'pending' && order.paymentId && (
+                    <>
+                      {order.paymentMethod === 'Cash' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={updatingPaymentMethodOrderId === getOrderId(order)}
+                          onClick={() => handleUpdatePaymentMethod(getOrderId(order), order.paymentId!, 'M-Pesa')}
+                        >
+                          {updatingPaymentMethodOrderId === getOrderId(order) ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : null}
+                          Pay by M-Pesa instead
+                        </Button>
+                      )}
+                      {order.paymentMethod !== 'Cash' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={updatingPaymentMethodOrderId === getOrderId(order)}
+                          onClick={() => handleUpdatePaymentMethod(getOrderId(order), order.paymentId!, 'Cash')}
+                        >
+                          {updatingPaymentMethodOrderId === getOrderId(order) ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : null}
+                          Pay by cash instead
+                        </Button>
+                      )}
+                    </>
                   )}
                   {canActOnBehalf && order.status === 'pending' && (order.paymentStatus ?? 'pending') === 'pending' && order.paymentMethod === 'Cash' && order.paymentId && (
                     <Button

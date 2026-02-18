@@ -281,12 +281,20 @@ function ShopPageContent() {
       setPaymentError('Enter your M-Pesa phone number (e.g. 07XXXXXXXX or 254XXXXXXXXX)')
       return
     }
+    if ((createdOrder.paymentMethod ?? paymentMethod) === 'Cash') {
+      setPaymentError('This order is pay-by-cash. Use "View my orders" to track it.')
+      return
+    }
     setInitiatingPayment(true)
     setPaymentError('')
     try {
-      await initiatePayment(createdOrder.id, {
+      const result = await initiatePayment(createdOrder.id, {
         phoneNumber: normalizeMpesaPhone(mpesaPhone.trim()),
       })
+      if (!result.ok) {
+        setPaymentError(result.error)
+        return
+      }
       setPaymentInitiated(true)
     } catch (e) {
       setPaymentError(e instanceof Error ? e.message : 'Failed to send M-Pesa prompt')
@@ -799,12 +807,17 @@ function ShopPageContent() {
             </>
           ) : (
             <>
+              {(() => {
+                const effectivePaymentMethod = (createdOrder?.paymentMethod ?? paymentMethod) as 'M-Pesa' | 'Cash'
+                const isCash = effectivePaymentMethod === 'Cash'
+                return (
+                  <>
               <DialogHeader>
                 <DialogTitle className="text-foreground">
-                  {createdOrder?.paymentMethod === 'Cash' ? 'Order placed — Pay in cash' : 'Complete your order — Pay with M-Pesa'}
+                  {isCash ? 'Order placed — Pay in cash' : 'Complete your order — Pay with M-Pesa'}
                 </DialogTitle>
                 <DialogDescription>
-                  {createdOrder?.paymentMethod === 'Cash'
+                  {isCash
                     ? 'Your order is placed. Pay the seller in cash when you receive. They will confirm payment in the system.'
                     : 'Your order is placed. Pay now to complete it. You will receive an M-Pesa prompt on your phone.'}
                 </DialogDescription>
@@ -813,14 +826,14 @@ function ShopPageContent() {
                 {createdOrder && (
                   <div className="rounded-lg border border-border bg-muted/30 p-3">
                     <p className="text-sm font-medium text-foreground">
-                      {createdOrder.paymentMethod === 'Cash' ? 'Amount to pay (in cash)' : 'Amount to pay'}
+                      {isCash ? 'Amount to pay (in cash)' : 'Amount to pay'}
                     </p>
                     <p className="text-2xl font-bold text-primary mt-1">
                       KES {(Number(createdOrder.total) / 1000).toFixed(0)}K
                     </p>
                   </div>
                 )}
-                {createdOrder?.paymentMethod === 'Cash' ? (
+                {isCash ? (
                   <p className="text-sm text-muted-foreground">
                     The seller will mark this order as paid once you pay in cash. You can track it under My orders.
                   </p>
@@ -850,7 +863,7 @@ function ShopPageContent() {
                 )}
               </div>
               <DialogFooter>
-                {createdOrder?.paymentMethod === 'Cash' ? (
+                {isCash ? (
                   <Button onClick={handleViewOrders}>
                     View my orders
                   </Button>
@@ -892,6 +905,9 @@ function ShopPageContent() {
                   </>
                 )}
               </DialogFooter>
+                  </>
+                )
+              })()}
             </>
           )}
         </DialogContent>

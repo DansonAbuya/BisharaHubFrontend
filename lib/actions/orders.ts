@@ -34,21 +34,21 @@ export async function createOrder(body: {
   return res.json()
 }
 
-export async function initiatePayment(orderId: string, body: { phoneNumber: string }): Promise<{
-  paymentId: string
-  checkoutRequestId: string
-  status: string
-  message: string
-}> {
+export type InitiatePaymentResult =
+  | { ok: true; paymentId: string; checkoutRequestId: string; status: string; message: string }
+  | { ok: false; error: string }
+
+export async function initiatePayment(orderId: string, body: { phoneNumber: string }): Promise<InitiatePaymentResult> {
   const res = await backendFetch(`/orders/${orderId}/payments/initiate`, {
     method: 'POST',
     body: JSON.stringify(body),
   })
+  const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as { message?: string }).message || (err as { error?: string }).error || 'Failed to initiate payment')
+    const message = (data as { message?: string }).message || (data as { error?: string }).error || 'Failed to initiate payment'
+    return { ok: false, error: message }
   }
-  return res.json()
+  return { ok: true, ...(data as { paymentId: string; checkoutRequestId: string; status: string; message: string }) }
 }
 
 export async function confirmPayment(orderId: string, paymentId: string): Promise<{ status: string; paymentId: string }> {
@@ -58,6 +58,22 @@ export async function confirmPayment(orderId: string, paymentId: string): Promis
     throw new Error((err as { message?: string }).message || (err as { error?: string }).error || 'Failed to confirm payment')
   }
   return res.json()
+}
+
+/** Update payment method for a pending order (e.g. switch between M-Pesa and Cash). Customer only for their own orders. */
+export async function updateOrderPaymentMethod(
+  orderId: string,
+  paymentId: string,
+  paymentMethod: 'M-Pesa' | 'Cash'
+): Promise<void> {
+  const res = await backendFetch(`/orders/${orderId}/payments/${paymentId}/method`, {
+    method: 'PATCH',
+    body: JSON.stringify({ paymentMethod }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { message?: string }).message || (err as { error?: string }).error || 'Failed to update payment method')
+  }
 }
 
 export async function cancelOrder(orderId: string): Promise<OrderDto> {
