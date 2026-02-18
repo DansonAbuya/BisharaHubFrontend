@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
 import { listOrders } from '@/lib/actions/orders'
 import { listCouriers } from '@/lib/actions/admin'
-import { listShipments, listCourierServices, verifyShipmentOtp, createShipmentWithProvider, getShipmentTracking, updateShipment } from '@/lib/actions/shipments'
+import { listShipments, listShipmentsByOrder, listCourierServices, verifyShipmentOtp, createShipmentWithProvider, getShipmentTracking, updateShipment } from '@/lib/actions/shipments'
 import type { OrderDto, ShipmentDto, CourierServiceDto, TrackingInfoDto } from '@/lib/api'
 
 function formatDate(value?: string | null): string {
@@ -81,12 +81,22 @@ export default function ShipmentsPage() {
       listOrders(),
       listCourierServices().catch(() => []),
       listCouriers().catch(() => []),
-    ]).then(([s, o, svcs, cour]) => {
-      setShipments(s)
-      setOrders(o)
-      setCourierServices(svcs)
-      setCouriers(cour.map((u) => ({ id: u.id, name: u.name, phone: u.phone })))
-    })
+    ])
+      .then(async ([s, o, svcs, cour]) => {
+        setOrders(o)
+        setCourierServices(svcs)
+        setCouriers(cour.map((u) => ({ id: u.id, name: u.name, phone: u.phone })))
+        const orderIdsWithShipment = new Set(s.map((ship) => ship.orderId))
+        const confirmedNoShipment = o.filter((order) => {
+          if (order.orderStatus !== 'confirmed' || orderIdsWithShipment.has(order.id)) return false
+          if (user.role === 'customer') return order.customerId === user.id
+          if (user.role === 'owner' || user.role === 'staff') return !!order.businessId && !!user.businessId && order.businessId === user.businessId
+          return true
+        })
+        const extra = await Promise.all(confirmedNoShipment.map((ord) => listShipmentsByOrder(ord.id)))
+        const extraFlat = extra.flat()
+        setShipments([...s, ...extraFlat])
+      })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Failed to load shipments')
       })
