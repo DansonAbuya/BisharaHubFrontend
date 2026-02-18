@@ -676,12 +676,14 @@ export async function getOrder(id: string): Promise<OrderDto> {
   return res.json()
 }
 
-/** Create order (auth required). Body: items, optional shippingAddress, deliveryMode & optional shippingFee. */
+/** Create order (auth required). Body: items, optional shippingAddress, deliveryMode, optional shippingFee, optional paymentMethod (M-Pesa | Cash). */
 export async function createOrder(body: {
   items: { productId: string; quantity: number }[]
   shippingAddress?: string
   deliveryMode: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP'
   shippingFee?: number
+  /** 'M-Pesa' or 'Cash'. Cash: seller confirms payment in the system. */
+  paymentMethod?: 'M-Pesa' | 'Cash'
 }): Promise<OrderDto> {
   const res = await fetch(`${API_BASE}/orders`, {
     method: 'POST',

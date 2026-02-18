@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { listOrders, initiatePayment, confirmPayment, cancelOrder, getReviewForOrder, createReview } from '@/lib/actions/orders'
+import { listOrders, initiatePayment, confirmPayment, cancelOrder, getReviewForOrder, createReview, updateOrderPaymentMethod } from '@/lib/actions/orders'
 import { getInvoiceHtml } from '@/lib/actions/reports'
 import { createDispute } from '@/lib/actions/disputes'
 import type { OrderDto, OrderReviewDto } from '@/lib/api'
@@ -56,9 +56,13 @@ export default function OrdersPage() {
   const [disputeSuccess, setDisputeSuccess] = useState(false)
   const [invoiceLoadingOrderId, setInvoiceLoadingOrderId] = useState<string | null>(null)
   const [confirmingCashOrderId, setConfirmingCashOrderId] = useState<string | null>(null)
+  const [updatingPaymentMethodOrderId, setUpdatingPaymentMethodOrderId] = useState<string | null>(null)
 
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
+
+  /** Order primary id (backend may return id or orderId). */
+  const getOrderId = (o: OrderDto) => o.id || (o as { orderId?: string }).orderId || ''
 
   useEffect(() => {
     if (!user) return
@@ -141,7 +145,7 @@ export default function OrdersPage() {
 
   const canPayOrder = (order: OrderDto) =>
     (order.paymentStatus ?? 'pending') === 'pending' &&
-    order.id &&
+    getOrderId(order) &&
     order.paymentId &&
     (isCustomerView ? order.customerId === user?.id && order.paymentMethod !== 'Cash' : false)
 
@@ -166,11 +170,12 @@ export default function OrdersPage() {
 
   const handleConfirmCancelOrder = async () => {
     if (!orderToCancel) return
-    setCancellingOrderId(orderToCancel.id)
+    const oid = getOrderId(orderToCancel)
+    setCancellingOrderId(oid)
     setError(null)
     try {
-      const updated = await cancelOrder(orderToCancel.id)
-      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
+      const updated = await cancelOrder(oid)
+      setOrders((prev) => prev.map((o) => (getOrderId(o) === getOrderId(updated) ? updated : o)))
       setOrderToCancel(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to cancel order')
@@ -180,14 +185,22 @@ export default function OrdersPage() {
   }
 
   const handleInitiatePayment = async () => {
-    if (!payOrder?.id || !mpesaPhone.trim()) {
+    if (!payOrder || !getOrderId(payOrder) || !mpesaPhone.trim()) {
       setPaymentError('Enter your M-Pesa phone number (e.g. 07XXXXXXXX or 254XXXXXXXXX)')
+      return
+    }
+    if (payOrder.paymentMethod === 'Cash') {
+      setPaymentError('This order is pay-by-cash. The seller will confirm when you pay in cash.')
       return
     }
     setInitiatingPayment(true)
     setPaymentError('')
     try {
-      await initiatePayment(payOrder.id, { phoneNumber: normalizeMpesaPhone(mpesaPhone.trim()) })
+      const result = await initiatePayment(getOrderId(payOrder), { phoneNumber: normalizeMpesaPhone(mpesaPhone.trim()) })
+      if (!result.ok) {
+        setPaymentError(result.error)
+        return
+      }
       setPaymentInitiated(true)
     } catch (e) {
       setPaymentError(e instanceof Error ? e.message : 'Failed to send M-Pesa prompt')
@@ -200,11 +213,32 @@ export default function OrdersPage() {
     listOrders().then(setOrders).catch(() => {})
   }
 
+  const handleUpdatePaymentMethod = async (orderId: string, paymentId: string, newMethod: 'M-Pesa' | 'Cash') => {
+    setUpdatingPaymentMethodOrderId(orderId)
+    setError(null)
+    try {
+      await updateOrderPaymentMethod(orderId, paymentId, newMethod)
+      const updatedList = await listOrders()
+      setOrders(updatedList)
+      const updated = updatedList.find((o) => getOrderId(o) === orderId)
+      if (selectedOrder && getOrderId(selectedOrder) === orderId && updated) setSelectedOrder(updated)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update payment method')
+    } finally {
+      setUpdatingPaymentMethodOrderId(null)
+    }
+  }
+
   const handleConfirmCashPayment = async (orderId: string, paymentId: string) => {
     setConfirmingCashOrderId(orderId)
     try {
       await confirmPayment(orderId, paymentId)
-      await listOrders().then(setOrders)
+      const updatedList = await listOrders()
+      setOrders(updatedList)
+      if (selectedOrder && getOrderId(selectedOrder) === orderId) {
+        const updated = updatedList.find((o) => getOrderId(o) === orderId)
+        if (updated) setSelectedOrder(updated)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to confirm cash payment')
     } finally {
@@ -227,7 +261,7 @@ export default function OrdersPage() {
     }
     setReviewLoading(true)
     setReviewError(null)
-    getReviewForOrder(selectedOrder.id)
+    getReviewForOrder(getOrderId(selectedOrder))
       .then((rev) => {
         if (rev) {
           setSelectedOrderReview(rev)
@@ -253,7 +287,7 @@ export default function OrdersPage() {
     setReviewSubmitting(true)
     setReviewError(null)
     try {
-      const rev = await createReview(selectedOrder.id, reviewRating, reviewComment.trim() || undefined)
+      const rev = await createReview(getOrderId(selectedOrder), reviewRating, reviewComment.trim() || undefined)
       setSelectedOrderReview(rev)
     } catch (e) {
       setReviewError(e instanceof Error ? e.message : 'Failed to submit review')
@@ -411,7 +445,7 @@ export default function OrdersPage() {
           <div className="space-y-3">
             {filteredOrders.map((order) => (
               <div
-                key={order.id}
+                key={getOrderId(order)}
                 className="p-3 sm:p-4 border border-border rounded-lg hover:bg-secondary/50 transition"
               >
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
@@ -449,6 +483,12 @@ export default function OrdersPage() {
                   )}
                 </div>
 
+                {/* Cash payment hint for customer */}
+                {isCustomerView && order.paymentMethod === 'Cash' && order.status === 'pending' && (order.paymentStatus ?? 'pending') === 'pending' && (
+                  <p className="text-sm text-muted-foreground mb-2 rounded-md bg-muted/50 px-2 py-1.5">
+                    Pay in cash to the seller; they will confirm payment in the system once received.
+                  </p>
+                )}
                 {/* Items Summary */}
                 <div className="mb-3">
                   <p className="text-sm text-muted-foreground mb-2">Items:</p>
@@ -488,12 +528,13 @@ export default function OrdersPage() {
                     variant="ghost"
                     size="sm"
                     className="text-foreground hover:bg-secondary/50"
-                    disabled={invoiceLoadingOrderId === order.id}
+                    disabled={invoiceLoadingOrderId === getOrderId(order)}
                     onClick={async () => {
-                      if (!order.id) return
-                      setInvoiceLoadingOrderId(order.id)
+                      const oid = getOrderId(order)
+                      if (!oid) return
+                      setInvoiceLoadingOrderId(oid)
                       try {
-                        const html = await getInvoiceHtml(order.id)
+                        const html = await getInvoiceHtml(oid)
                         const w = window.open('', '_blank', 'noopener')
                         if (w) {
                           w.document.write(html)
@@ -507,7 +548,7 @@ export default function OrdersPage() {
                     }}
                   >
                     <FileText className="w-4 h-4 mr-2" />
-                    {invoiceLoadingOrderId === order.id ? 'Generating…' : 'Invoice'}
+                    {invoiceLoadingOrderId === getOrderId(order) ? 'Generating…' : 'Invoice'}
                   </Button>
                   {isCustomerView && canPayOrder(order) && (
                     <Button
@@ -519,17 +560,47 @@ export default function OrdersPage() {
                       Pay now
                     </Button>
                   )}
+                  {isCustomerView && order.customerId === user?.id && order.status === 'pending' && (order.paymentStatus ?? 'pending') === 'pending' && order.paymentId && (
+                    <>
+                      {order.paymentMethod === 'Cash' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={updatingPaymentMethodOrderId === getOrderId(order)}
+                          onClick={() => handleUpdatePaymentMethod(getOrderId(order), order.paymentId!, 'M-Pesa')}
+                        >
+                          {updatingPaymentMethodOrderId === getOrderId(order) ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : null}
+                          Pay by M-Pesa instead
+                        </Button>
+                      )}
+                      {order.paymentMethod !== 'Cash' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={updatingPaymentMethodOrderId === getOrderId(order)}
+                          onClick={() => handleUpdatePaymentMethod(getOrderId(order), order.paymentId!, 'Cash')}
+                        >
+                          {updatingPaymentMethodOrderId === getOrderId(order) ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : null}
+                          Pay by cash instead
+                        </Button>
+                      )}
+                    </>
+                  )}
                   {canActOnBehalf && order.status === 'pending' && (order.paymentStatus ?? 'pending') === 'pending' && order.paymentMethod === 'Cash' && order.paymentId && (
                     <Button
                       size="sm"
                       className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                      disabled={confirmingCashOrderId === order.id}
-                      onClick={() => handleConfirmCashPayment(order.id, order.paymentId!)}
+                      disabled={confirmingCashOrderId === getOrderId(order)}
+                      onClick={() => handleConfirmCashPayment(getOrderId(order), order.paymentId!)}
                     >
-                      {confirmingCashOrderId === order.id ? (
+                      {confirmingCashOrderId === getOrderId(order) ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       ) : null}
-                      {confirmingCashOrderId === order.id ? 'Confirming…' : 'Confirm cash payment'}
+                      {confirmingCashOrderId === getOrderId(order) ? 'Confirming…' : 'Confirm cash payment'}
                     </Button>
                   )}
                   {isCustomerView && order.customerId === user?.id && order.status !== 'cancelled' && order.status !== 'pending' && (
@@ -552,10 +623,10 @@ export default function OrdersPage() {
                       variant="outline"
                       size="sm"
                       className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                      disabled={cancellingOrderId === order.id}
+                      disabled={cancellingOrderId === getOrderId(order)}
                       onClick={() => handleRequestCancelOrder(order)}
                     >
-                      {cancellingOrderId === order.id ? 'Cancelling…' : 'Cancel order'}
+                      {cancellingOrderId === getOrderId(order) ? 'Cancelling…' : 'Cancel order'}
                     </Button>
                   )}
                 </div>
@@ -606,6 +677,12 @@ export default function OrdersPage() {
                     {selectedOrder.paymentStatus ?? 'pending'}
                   </Badge>
                 </div>
+                {selectedOrder.paymentMethod && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Payment method</p>
+                    <p className="font-medium text-foreground">{selectedOrder.paymentMethod}</p>
+                  </div>
+                )}
               </div>
 
               {/* Items */}
@@ -675,15 +752,27 @@ export default function OrdersPage() {
                     Pay with M-Pesa
                   </Button>
                 )}
+                {canActOnBehalf && selectedOrder.status === 'pending' && (selectedOrder.paymentStatus ?? 'pending') === 'pending' && selectedOrder.paymentMethod === 'Cash' && selectedOrder.paymentId && (
+                  <Button
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                    disabled={confirmingCashOrderId === getOrderId(selectedOrder)}
+                    onClick={() => handleConfirmCashPayment(getOrderId(selectedOrder), selectedOrder.paymentId!)}
+                  >
+                    {confirmingCashOrderId === getOrderId(selectedOrder) ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : null}
+                    Confirm cash payment
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   className="bg-transparent"
-                  disabled={invoiceLoadingOrderId === selectedOrder?.id || !selectedOrder?.id}
+                  disabled={!selectedOrder || invoiceLoadingOrderId === getOrderId(selectedOrder) || !getOrderId(selectedOrder)}
                   onClick={async () => {
-                    if (!selectedOrder?.id) return
-                    setInvoiceLoadingOrderId(selectedOrder.id)
+                    if (!selectedOrder || !getOrderId(selectedOrder)) return
+                    setInvoiceLoadingOrderId(getOrderId(selectedOrder))
                     try {
-                      const html = await getInvoiceHtml(selectedOrder.id)
+                      const html = await getInvoiceHtml(getOrderId(selectedOrder))
                       const w = window.open('', '_blank', 'noopener')
                       if (w) {
                         w.document.write(html)
@@ -697,7 +786,7 @@ export default function OrdersPage() {
                   }}
                 >
                   <FileText className="w-4 h-4 mr-2" />
-                  {invoiceLoadingOrderId === selectedOrder?.id ? 'Generating…' : 'Print Invoice'}
+                  {invoiceLoadingOrderId === (selectedOrder && getOrderId(selectedOrder)) ? 'Generating…' : 'Print Invoice'}
                 </Button>
               </div>
 
