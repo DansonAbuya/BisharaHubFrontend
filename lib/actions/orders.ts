@@ -65,7 +65,7 @@ export async function confirmPayment(
 ): Promise<{ status: string; paymentId: string }> {
   const res = await backendFetch(`/orders/${orderId}/payments/${paymentId}/confirm`, {
     method: 'PATCH',
-    body: body ? JSON.stringify(body) : undefined,
+    body: JSON.stringify(body ?? {}),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
