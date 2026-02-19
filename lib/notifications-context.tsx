@@ -14,6 +14,8 @@ interface NotificationsContextType {
   markAsRead: (id: string) => Promise<void>
   markAllAsRead: () => Promise<void>
   unreadCount: number
+  /** True while the initial notifications list is being fetched */
+  loading: boolean
 }
 
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined)
@@ -21,21 +23,26 @@ const NotificationsContext = createContext<NotificationsContextType | undefined>
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const { user, isInitialized } = useAuth()
   const [notifications, setNotifications] = useState<NotificationDto[]>([])
+  const [loading, setLoading] = useState(true)
 
   // Fetch only for the current user; clear when logged out so one user never sees another's notifications
   useEffect(() => {
     if (!isInitialized) return
     if (!user?.id) {
       setNotifications([])
+      setLoading(false)
       return
     }
     let cancelled = false
+    setLoading(true)
     ;(async () => {
       try {
         const data = await listNotifications()
         if (!cancelled) setNotifications(data)
       } catch {
         if (!cancelled) setNotifications([])
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     })()
     return () => {
@@ -70,6 +77,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         markAsRead,
         markAllAsRead,
         unreadCount,
+        loading,
       }}
     >
       {children}

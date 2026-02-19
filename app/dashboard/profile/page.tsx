@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Mail, MapPin, Phone } from 'lucide-react'
+import { PageLoading } from '@/components/layout/page-loading'
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth()
@@ -42,6 +43,10 @@ export default function ProfilePage() {
       .finally(() => { if (!cancelled) setOrdersLoading(false) })
     return () => { cancelled = true }
   }, [user, isCustomer])
+
+  if (isCustomer && ordersLoading) {
+    return <PageLoading message="Loading profile…" minHeight="200px" />
+  }
 
   const orderCount = orders.length
   const totalSpent = orders.reduce((sum, o) => sum + (o.total ?? 0), 0)

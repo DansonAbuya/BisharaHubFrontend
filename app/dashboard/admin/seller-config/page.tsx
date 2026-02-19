@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Spinner } from '@/components/ui/spinner'
+import { PageLoading } from '@/components/layout/page-loading'
 import { Paintbrush, Tag } from 'lucide-react'
 
 export default function AdminSellerConfigPage() {
@@ -138,10 +138,7 @@ export default function AdminSellerConfigPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Spinner className="w-6 h-6 mr-2" />
-              <span className="text-sm text-muted-foreground">Loading sellers...</span>
-            </div>
+            <PageLoading message="Loading sellers…" minHeight="200px" />
           ) : sellers.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">
               No sellers found. Onboard a business first.

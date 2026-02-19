@@ -27,6 +27,7 @@ import {
   TIER_REQUIREMENTS_SUMMARY,
   type TierId,
 } from '@/lib/verification-tiers'
+import { PageLoading } from '@/components/layout/page-loading'
 import { ShieldCheck, ShieldX, Loader2, FileCheck, FileText, ExternalLink } from 'lucide-react'
 
 const TIER_OPTIONS: { value: TierId; label: string }[] = [
@@ -157,9 +158,7 @@ export default function PendingVerificationPage() {
           )}
 
           {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            </div>
+            <PageLoading message="Loading pending verifications…" minHeight="160px" />
           ) : pending.length === 0 ? (
             <p className="text-muted-foreground py-8 text-center">No businesses pending verification.</p>
           ) : (

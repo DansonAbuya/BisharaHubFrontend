@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { MapPin, Truck } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+import { PageLoading } from '@/components/layout/page-loading'
 import { listCourierShipments, updateCourierShipmentStatus } from '@/lib/actions/shipments'
 import type { ShipmentDto, CourierShipmentDto } from '@/lib/api'
 
@@ -125,9 +126,7 @@ export default function CourierPortalPage() {
 
       {loading ? (
         <PageSection>
-          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-            Loading your deliveries…
-          </div>
+          <PageLoading message="Loading your deliveries…" minHeight="200px" />
         </PageSection>
       ) : (
         <>

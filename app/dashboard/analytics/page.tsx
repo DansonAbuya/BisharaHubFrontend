@@ -29,6 +29,8 @@ import { Download, TrendingUp, Calendar } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+import { PageLoading } from '@/components/layout/page-loading'
+import { formatPrice } from '@/lib/utils'
 
 function AnalyticsExportButton() {
   const [exporting, setExporting] = useState(false)
@@ -192,6 +194,10 @@ export default function AnalyticsPage() {
   const averageOrderValue = summary?.averageOrderValue ?? 0
   const totalOrders = summary?.totalOrders ?? orders.length
   const pendingOrdersCount = summary?.pendingOrders ?? orders.filter((o) => o.status === 'pending').length
+
+  if (loading) {
+    return <PageLoading message="Loading analytics…" minHeight="280px" />
+  }
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -379,7 +385,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-foreground">
-                      KES {((product.price * (product.quantity ?? 0)) / 1000).toFixed(0)}K
+                      {formatPrice(product.price * (product.quantity ?? 0))}
                     </p>
                     <p className="text-xs text-muted-foreground">{(product.quantity ?? 0)} in stock</p>
                   </div>

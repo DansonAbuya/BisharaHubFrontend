@@ -16,13 +16,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { listOrders, initiatePayment, confirmPayment, cancelOrder, getReviewForOrder, createReview, updateOrderPaymentMethod } from '@/lib/actions/orders'
+import { listShipmentsByOrder } from '@/lib/actions/shipments'
 import { getInvoiceHtml } from '@/lib/actions/reports'
 import { createDispute } from '@/lib/actions/disputes'
-import type { OrderDto, OrderReviewDto } from '@/lib/api'
+import type { OrderDto, OrderReviewDto, ShipmentDto } from '@/lib/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 import { PageHeader } from '@/components/layout/page-header'
+import { PageLoading } from '@/components/layout/page-loading'
 
 export default function OrdersPage() {
   const { user } = useAuth()
@@ -57,6 +59,8 @@ export default function OrdersPage() {
   const [invoiceLoadingOrderId, setInvoiceLoadingOrderId] = useState<string | null>(null)
   const [confirmingCashOrderId, setConfirmingCashOrderId] = useState<string | null>(null)
   const [updatingPaymentMethodOrderId, setUpdatingPaymentMethodOrderId] = useState<string | null>(null)
+  const [shipmentsByOrderId, setShipmentsByOrderId] = useState<Record<string, ShipmentDto[]>>({})
+  const [shipmentsLoadingOrderId, setShipmentsLoadingOrderId] = useState<string | null>(null)
 
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
@@ -69,7 +73,24 @@ export default function OrdersPage() {
     setLoading(true)
     setError(null)
     listOrders()
-      .then(setOrders)
+      .then((o) => {
+        setOrders(o)
+        // For seller: ensure shipment data for confirmed orders (triggers backend ensure for cash-confirmed)
+        if (user.role !== 'customer' && o.length > 0) {
+          const confirmed = o.filter((ord) => ord.status === 'confirmed')
+          const idOf = (ord: OrderDto) => ord.id || (ord as { orderId?: string }).orderId || ''
+          Promise.all(confirmed.map((ord) => listShipmentsByOrder(idOf(ord))))
+            .then((results) => {
+              const next: Record<string, ShipmentDto[]> = {}
+              confirmed.forEach((ord, i) => {
+                const id = idOf(ord)
+                if (id) next[id] = results[i] ?? []
+              })
+              setShipmentsByOrderId((prev) => ({ ...prev, ...next }))
+            })
+            .catch(() => {})
+        }
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load orders'))
       .finally(() => setLoading(false))
   }, [user])
@@ -233,8 +254,12 @@ export default function OrdersPage() {
     setConfirmingCashOrderId(orderId)
     try {
       await confirmPayment(orderId, paymentId)
-      const updatedList = await listOrders()
+      const [updatedList, shipmentList] = await Promise.all([
+        listOrders(),
+        listShipmentsByOrder(orderId),
+      ])
       setOrders(updatedList)
+      setShipmentsByOrderId((prev) => ({ ...prev, [orderId]: shipmentList }))
       if (selectedOrder && getOrderId(selectedOrder) === orderId) {
         const updated = updatedList.find((o) => getOrderId(o) === orderId)
         if (updated) setSelectedOrder(updated)
@@ -250,6 +275,18 @@ export default function OrdersPage() {
     if (!order || !isCustomerView) return false
     return order.status === 'delivered' && (order.paymentStatus ?? 'pending') === 'completed'
   }
+
+  // When seller opens order detail for a confirmed order, ensure we have shipment data (triggers backend ensure for cash-confirmed)
+  useEffect(() => {
+    if (!isDetailOpen || !selectedOrder || selectedOrder.status !== 'confirmed') return
+    const oid = getOrderId(selectedOrder)
+    if (!oid || shipmentsByOrderId[oid] !== undefined) return
+    setShipmentsLoadingOrderId(oid)
+    listShipmentsByOrder(oid)
+      .then((list) => setShipmentsByOrderId((prev) => ({ ...prev, [oid]: list })))
+      .catch(() => setShipmentsByOrderId((prev) => ({ ...prev, [oid]: [] })))
+      .finally(() => setShipmentsLoadingOrderId(null))
+  }, [isDetailOpen, selectedOrder])
 
   useEffect(() => {
     if (!isDetailOpen || !selectedOrder || !canLeaveReview(selectedOrder)) {
@@ -297,11 +334,7 @@ export default function OrdersPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    )
+    return <PageLoading message="Loading orders…" minHeight="200px" />
   }
 
   const headerDescription = isCustomerView
@@ -699,6 +732,63 @@ export default function OrdersPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Shipment journey (for confirmed orders; backend ensures shipment for cash-confirmed) */}
+              {selectedOrder.status === 'confirmed' && (
+                <div>
+                  <p className="font-semibold text-foreground mb-3">Shipment</p>
+                  {shipmentsLoadingOrderId === getOrderId(selectedOrder) ? (
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading shipment…
+                    </p>
+                  ) : (shipmentsByOrderId[getOrderId(selectedOrder)] ?? []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No shipment record yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {(shipmentsByOrderId[getOrderId(selectedOrder)] ?? []).map((s) => {
+                        const status = (s.status || '').toUpperCase()
+                        const labels: Record<string, string> = {
+                          CREATED: 'Awaiting dispatch',
+                          SHIPPED: 'Dispatched',
+                          IN_TRANSIT: 'In transit',
+                          OUT_FOR_DELIVERY: 'Out for delivery',
+                          DELIVERED: 'Delivered',
+                          COLLECTED: 'Collected',
+                        }
+                        const statusLabel = labels[status] || status?.replace(/_/g, ' ') || '—'
+                        return (
+                          <div key={s.id} className="rounded-md border border-border bg-muted/20 p-3">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <Badge
+                                className={
+                                  status === 'CREATED'
+                                    ? 'bg-accent/30 text-accent'
+                                    : ['SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(status)
+                                      ? 'bg-secondary/30 text-foreground'
+                                      : ['DELIVERED', 'COLLECTED'].includes(status)
+                                        ? 'bg-primary/30 text-primary'
+                                        : 'bg-muted text-muted-foreground'
+                                }
+                              >
+                                {statusLabel}
+                              </Badge>
+                              {s.trackingNumber && (
+                                <span className="text-xs text-muted-foreground">Tracking: {s.trackingNumber}</span>
+                              )}
+                            </div>
+                            {(s.carrier || s.riderName || s.riderVehicle) && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {[s.carrier, s.riderName, s.riderVehicle].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Total and confirmation */}
               <div className="pt-3 border-t border-border space-y-3">

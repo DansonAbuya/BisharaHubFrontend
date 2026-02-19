@@ -15,6 +15,8 @@ import { useAuth } from '@/lib/auth-context'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+import { PageLoading } from '@/components/layout/page-loading'
+import { formatPrice } from '@/lib/utils'
 
 const TIER_LABELS: Record<string, string> = {
   tier1: 'Informal',
@@ -106,6 +108,10 @@ export function CustomerDashboard() {
       .finally(() => { if (!cancelled) setProductsLoading(false) })
     return () => { cancelled = true }
   }, [selectedShopId])
+
+  if (ordersLoading) {
+    return <PageLoading message="Loading dashboard…" minHeight="280px" />
+  }
 
   const recentOrders = orders.slice(0, 3)
   const inTransitCount = orders.filter(
@@ -359,7 +365,7 @@ export function CustomerDashboard() {
                 <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{product.description || '—'}</p>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-lg font-bold text-primary">
-                    KES {(Number(product.price) / 1000).toFixed(0)}K
+                    {formatPrice(Number(product.price))}
                   </span>
                   <div className="flex gap-2">
                     <Button

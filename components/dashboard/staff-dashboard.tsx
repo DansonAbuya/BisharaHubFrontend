@@ -14,11 +14,13 @@ import type { OrderDto, ShipmentDto } from '@/lib/api'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+import { PageLoading } from '@/components/layout/page-loading'
 
 export function StaffDashboard() {
   const { user } = useAuth()
   const [orders, setOrders] = useState<OrderDto[]>([])
   const [shipments, setShipments] = useState<ShipmentDto[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
@@ -36,6 +38,8 @@ export function StaffDashboard() {
           setOrders([])
           setShipments([])
         }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
     load()
@@ -43,6 +47,10 @@ export function StaffDashboard() {
       cancelled = true
     }
   }, [])
+
+  if (loading) {
+    return <PageLoading message="Loading dashboard…" minHeight="280px" />
+  }
 
   const pendingOrders = useMemo(
     () => orders.filter((o) => o.status === 'pending'),

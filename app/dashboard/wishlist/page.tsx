@@ -10,6 +10,8 @@ import { listProducts } from '@/lib/actions/products'
 import type { ProductDto } from '@/lib/api'
 import { Heart, ShoppingCart, Share2, Loader2 } from 'lucide-react'
 import Image from 'next/image'
+import { PageLoading } from '@/components/layout/page-loading'
+import { formatPrice } from '@/lib/utils'
 const WISHLIST_STORAGE_KEY = 'biashara_wishlist'
 
 export default function WishlistPage() {
@@ -114,7 +116,7 @@ export default function WishlistPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-primary">
-                KES {(totalValue / 1000).toFixed(0)}K
+                {formatPrice(totalValue)}
               </div>
             </CardContent>
           </Card>
@@ -125,7 +127,7 @@ export default function WishlistPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-accent">
-                KES {(totalValue / wishlist.length / 1000).toFixed(0)}K
+                {formatPrice(wishlist.length ? totalValue / wishlist.length : 0)}
               </div>
             </CardContent>
           </Card>
@@ -134,9 +136,7 @@ export default function WishlistPage() {
 
       {/* Wishlist Items */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-        </div>
+        <PageLoading message="Loading wishlist…" minHeight="200px" />
       ) : wishlist.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {wishlistItems.map((product) => (
@@ -171,7 +171,7 @@ export default function WishlistPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-2xl font-bold text-primary">
-                    KES {(product.price / 1000).toFixed(0)}K
+                    {formatPrice(product.price)}
                   </p>
                 </div>
                 <div className="flex gap-2">
