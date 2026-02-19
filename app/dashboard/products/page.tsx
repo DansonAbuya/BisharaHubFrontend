@@ -22,6 +22,8 @@ import {
 import type { ProductDto, ProductCategoryDto } from '@/lib/api'
 import { Plus, Edit2, Trash2, BarChart3, Loader2 } from 'lucide-react'
 import Image from 'next/image'
+import { PageLoading } from '@/components/layout/page-loading'
+import { formatPrice } from '@/lib/utils'
 
 export default function ProductsPage() {
   const { user } = useAuth()
@@ -224,9 +226,7 @@ export default function ProductsPage() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-        </div>
+        <PageLoading message="Loading products…" minHeight="200px" />
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
@@ -264,7 +264,7 @@ export default function ProductsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-xl sm:text-2xl font-bold text-primary">
-                  KES {(products.reduce((sum, p) => sum + p.price * (p.quantity ?? 0), 0) / 1_000_000).toFixed(1)}M
+                  {formatPrice(products.reduce((sum, p) => sum + p.price * (p.quantity ?? 0), 0))}
                 </div>
               </CardContent>
             </Card>
@@ -321,7 +321,7 @@ export default function ProductsPage() {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 py-3 border-y border-border mb-3">
                         <div>
                           <p className="text-xs text-muted-foreground">Price</p>
-                          <p className="font-semibold text-foreground text-sm">KES {(product.price / 1000).toFixed(0)}K</p>
+                          <p className="font-semibold text-foreground text-sm">{formatPrice(product.price)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Stock</p>
@@ -330,7 +330,7 @@ export default function ProductsPage() {
                         <div className="hidden sm:block">
                           <p className="text-xs text-muted-foreground">Total Value</p>
                           <p className="font-semibold text-foreground text-sm">
-                            KES {(((product.price ?? 0) * (product.quantity ?? 0)) / 1000).toFixed(0)}K
+                            {formatPrice((product.price ?? 0) * (product.quantity ?? 0))}
                           </p>
                         </div>
                       </div>

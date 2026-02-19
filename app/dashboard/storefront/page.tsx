@@ -19,6 +19,8 @@ import type { ProductDto, ProductCategoryDto, OrderDto, SellerConfigDto } from '
 import { useAuth } from '@/lib/auth-context'
 import { ShoppingCart, Heart, Star, Filter, Loader2, Smartphone } from 'lucide-react'
 import Image from 'next/image'
+import { PageLoading } from '@/components/layout/page-loading'
+import { formatPrice } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -386,9 +388,7 @@ export default function StorefrontPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-        </div>
+        <PageLoading message="Loading store…" minHeight="200px" />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {sortedProducts.map((product) => (
@@ -438,7 +438,7 @@ export default function StorefrontPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-2xl font-bold text-primary">
-                      KES {(product.price / 1000).toFixed(0)}K
+                      {formatPrice(product.price)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {(product.quantity ?? 0)} in stock

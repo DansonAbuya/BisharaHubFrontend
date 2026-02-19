@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+import { PageLoading } from '@/components/layout/page-loading'
 import { listExpenses, createExpense, type ExpenseDto } from '@/lib/actions/expenses'
 import { getExpensesExportCsv, getExpensesReportHtml } from '@/lib/actions/reports'
 import { Receipt, Plus, Download, Printer } from 'lucide-react'
@@ -211,7 +212,7 @@ export default function ExpensesPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <p className="text-sm text-muted-foreground py-4">Loading…</p>
+              <PageLoading message="Loading expenses…" minHeight="160px" />
             ) : expenses.length === 0 ? (
               <div className="text-center py-12">
                 <Receipt className="w-12 h-12 text-muted-foreground mx-auto mb-3" />

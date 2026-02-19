@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Spinner } from '@/components/ui/spinner'
+import { PageLoading } from '@/components/layout/page-loading'
 import {
   Dialog,
   DialogContent,
@@ -101,9 +101,7 @@ export default function AdminCourierServicesPage() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <Spinner className="w-8 h-8" />
-        </div>
+        <PageLoading message="Loading courier services…" minHeight="200px" />
       ) : list.length === 0 ? (
         <Card className="border-border">
           <CardContent className="py-12 text-center text-muted-foreground">

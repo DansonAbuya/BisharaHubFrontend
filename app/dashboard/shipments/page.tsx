@@ -11,6 +11,7 @@ import { MapPin, Package, Truck, CheckCircle } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+import { PageLoading } from '@/components/layout/page-loading'
 import { listOrders } from '@/lib/actions/orders'
 import { listCouriers } from '@/lib/actions/admin'
 import { listShipments, listShipmentsByOrder, listCourierServices, verifyShipmentOtp, createShipmentWithProvider, getShipmentTracking, updateShipment } from '@/lib/actions/shipments'
@@ -268,9 +269,7 @@ export default function ShipmentsPage() {
 
       {loading ? (
         <PageSection>
-          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-            Loading shipments…
-          </div>
+          <PageLoading message="Loading shipments…" minHeight="200px" />
         </PageSection>
       ) : (
         <>

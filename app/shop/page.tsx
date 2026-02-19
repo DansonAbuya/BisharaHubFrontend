@@ -27,6 +27,8 @@ import type { BusinessDto, ProductDto, ProductCategoryDto, OrderDto } from '@/li
 import { useAuth } from '@/lib/auth-context'
 import { SignInPrompt } from '@/components/sign-in-prompt'
 import { ShoppingCart, Heart, Star, Filter, Loader2, Store, Smartphone } from 'lucide-react'
+import { PageLoading } from '@/components/layout/page-loading'
+import { formatPrice } from '@/lib/utils'
 
 interface CartItem {
   productId: string
@@ -393,12 +395,7 @@ function ShopPageContent() {
         {!selectedShopId && (
           <>
             {shopsLoading ? (
-              <div className="flex justify-center py-20">
-                <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="w-10 h-10 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">Loading shops…</p>
-                </div>
-              </div>
+              <PageLoading message="Loading shops…" minHeight="280px" />
             ) : shopsByTier.length === 0 ? (
               <Card className="border-border">
                 <CardContent className="py-16 sm:py-20 text-center">
@@ -586,7 +583,7 @@ function ShopPageContent() {
                       <div className="flex items-end justify-between gap-2">
                         <div>
                           <p className="text-xl font-bold text-primary">
-                            KES {(product.price / 1000).toFixed(0)}K
+                            {formatPrice(product.price)}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {(product.quantity ?? 0)} in stock

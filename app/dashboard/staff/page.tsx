@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { addStaff, listStaff } from '@/lib/actions/admin'
 import { UserPlus, Mail, Phone, Clock } from 'lucide-react'
-import { Spinner } from '@/components/ui/spinner'
+import { PageLoading } from '@/components/layout/page-loading'
 
 interface StaffMember {
   id: string
@@ -67,6 +67,10 @@ export default function StaffManagementPage() {
         </Card>
       </div>
     )
+  }
+
+  if (loadingStaff) {
+    return <PageLoading message="Loading staff…" minHeight="200px" />
   }
 
   const filteredStaff = staff.filter(

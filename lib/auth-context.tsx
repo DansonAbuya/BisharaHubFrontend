@@ -1,7 +1,6 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import * as api from './api'
 import { setAuthCookie, clearAuthCookie } from './actions/auth-cookie'
 import { getCurrentUser as getCurrentUserAction } from './actions/user'
@@ -105,7 +104,6 @@ function toAuthUser(u: api.AuthUser): AuthUser {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -190,8 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const cancelTwoFactor = () => setPendingTwoFactor(null)
 
   const logout = useCallback(async () => {
-    // Clear local state first so UI updates immediately; then clear server cookie before
-    // redirect so the next page load does not restore session (fixes staff/customer stuck on verification).
+    // Clear local state first so UI updates immediately.
     setUser(null)
     setPendingTwoFactor(null)
     sessionStorage.removeItem('biashara_user')
@@ -200,9 +197,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (USE_API) {
       api.logout().catch(() => {})
     }
-    await clearAuthCookie().catch(() => {})
-    router.replace('/')
-  }, [router])
+    // Clear cookie with a short timeout so we never hang; then always redirect to home.
+    // Use full page navigation so we leave the current page regardless of route/layout.
+    const goHome = () => {
+      window.location.href = '/'
+    }
+    try {
+      await Promise.race([
+        clearAuthCookie(),
+        new Promise<void>((r) => setTimeout(r, 1500)),
+      ])
+    } catch {
+      // ignore
+    } finally {
+      goHome()
+    }
+  }, [])
 
   const refreshUser = async () => {
     if (!USE_API) return
@@ -234,7 +244,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         inactivityTimerRef.current = null
       }
       inactivityTimerRef.current = setTimeout(() => {
-        logout() // clears session and redirects to home via router.replace('/')
+        logout() // clears session and redirects to home
       }, INACTIVITY_TIMEOUT_MS)
     }
 
@@ -249,7 +259,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         inactivityTimerRef.current = null
       }
     }
-  }, [user, logout, router])
+  }, [user, logout])
 
   React.useEffect(() => {
     let cancelled = false

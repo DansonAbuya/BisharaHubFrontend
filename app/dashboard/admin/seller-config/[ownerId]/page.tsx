@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Spinner } from '@/components/ui/spinner'
+import { PageLoading } from '@/components/layout/page-loading'
 import { ArrowLeft, Paintbrush, Settings2, BarChart3, Truck, MessageCircle, Package } from 'lucide-react'
 
 export default function AdminSellerSetupPage() {
@@ -63,12 +63,7 @@ export default function AdminSellerSetupPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Spinner className="w-6 h-6 mr-2" />
-        <span className="text-sm text-muted-foreground">Loading seller...</span>
-      </div>
-    )
+    return <PageLoading message="Loading seller…" minHeight="200px" />
   }
 
   if (!seller) {
