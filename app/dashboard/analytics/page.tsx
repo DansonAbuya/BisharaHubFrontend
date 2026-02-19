@@ -232,7 +232,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-foreground">
-              KES {(averageOrderValue / 1000).toFixed(0)}K
+              {formatPrice(averageOrderValue)}
             </div>
             <p className="text-xs text-muted-foreground mt-2">Per order</p>
           </CardContent>
@@ -357,7 +357,7 @@ export default function AnalyticsPage() {
                 <XAxis dataKey="name" stroke="var(--muted-foreground)" />
                 <YAxis stroke="var(--muted-foreground)" />
                 <Tooltip
-                  formatter={(value) => `KES ${(value / 1000).toFixed(0)}K`}
+                  formatter={(value) => formatPrice(value)}
                   contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}
                 />
                 <Bar dataKey="value" fill="var(--primary)" radius={[8, 8, 0, 0]} />

@@ -60,6 +60,27 @@ export async function confirmPayment(orderId: string, paymentId: string): Promis
   return res.json()
 }
 
+/** Seller sets/updates delivery mode and address for an order (e.g. cash orders). Staff/owner only. */
+export async function updateOrderDelivery(
+  orderId: string,
+  body: {
+    deliveryMode: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP'
+    shippingAddress?: string
+    pickupLocation?: string
+    shippingFee?: number
+  }
+): Promise<OrderDto> {
+  const res = await backendFetch(`/orders/${orderId}/delivery`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { message?: string }).message || (err as { error?: string }).error || 'Failed to update delivery')
+  }
+  return res.json()
+}
+
 /** Update payment method for a pending order (e.g. switch between M-Pesa and Cash). Customer only for their own orders. */
 export async function updateOrderPaymentMethod(
   orderId: string,

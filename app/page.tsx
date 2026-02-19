@@ -157,7 +157,7 @@ export default function Home() {
                   </div>
                   <div className="rounded-lg bg-primary/5 border border-primary/10 p-3 text-center">
                     <p className="text-[0.65rem] font-medium uppercase tracking-wider text-muted-foreground mb-1">M-Pesa</p>
-                    <p className="text-lg font-bold text-foreground tabular-nums">82K</p>
+                    <p className="text-lg font-bold text-foreground tabular-nums">82,000</p>
                     <p className="text-[0.6rem] text-muted-foreground mt-0.5">7 days</p>
                   </div>
                   <div className="rounded-lg bg-primary/5 border border-primary/10 p-3 text-center">

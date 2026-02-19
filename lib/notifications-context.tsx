@@ -26,6 +26,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const [loading, setLoading] = useState(true)
 
   // Fetch only for the current user; clear when logged out so one user never sees another's notifications
+  const NOTIFICATIONS_FETCH_TIMEOUT_MS = 12_000
   useEffect(() => {
     if (!isInitialized) return
     if (!user?.id) {
@@ -35,18 +36,31 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     }
     let cancelled = false
     setLoading(true)
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) {
+        setNotifications([])
+        setLoading(false)
+      }
+    }, NOTIFICATIONS_FETCH_TIMEOUT_MS)
     ;(async () => {
       try {
         const data = await listNotifications()
-        if (!cancelled) setNotifications(data)
+        if (!cancelled) {
+          setNotifications(data)
+          setLoading(false)
+        }
       } catch {
-        if (!cancelled) setNotifications([])
+        if (!cancelled) {
+          setNotifications([])
+          setLoading(false)
+        }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) clearTimeout(timeoutId)
       }
     })()
     return () => {
       cancelled = true
+      clearTimeout(timeoutId)
     }
   }, [isInitialized, user?.id])
 

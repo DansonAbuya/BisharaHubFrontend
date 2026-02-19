@@ -238,7 +238,7 @@ export function CustomerDashboard() {
                               {item.productName} x {item.quantity}
                             </span>
                             <span className="font-medium text-foreground">
-                              KES {(Number(item.subtotal) / 1000).toFixed(0)}K
+                              {formatPrice(Number(item.subtotal))}
                             </span>
                           </div>
                         ))}
@@ -249,7 +249,7 @@ export function CustomerDashboard() {
                       <div>
                         <p className="text-xs text-muted-foreground">Total Amount</p>
                         <p className="font-semibold text-foreground">
-                          KES {(Number(order.total) / 1000).toFixed(0)}K
+                          {formatPrice(Number(order.total))}
                         </p>
                       </div>
                       <div>

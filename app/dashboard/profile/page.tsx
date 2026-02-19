@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Mail, MapPin, Phone } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
+import { formatPrice } from '@/lib/utils'
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth()
@@ -255,7 +256,7 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-primary">
-                {ordersLoading ? '—' : `KES ${(totalSpent / 1000).toFixed(0)}K`}
+                {ordersLoading ? '—' : formatPrice(totalSpent)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">Cumulative</p>
             </CardContent>
