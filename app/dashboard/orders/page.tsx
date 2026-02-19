@@ -67,6 +67,8 @@ export default function OrdersPage() {
   const [deliveryPickupLocation, setDeliveryPickupLocation] = useState('')
   const [deliverySavingOrderId, setDeliverySavingOrderId] = useState<string | null>(null)
   const [deliveryError, setDeliveryError] = useState<string | null>(null)
+  const [cashConfirmDialogOpen, setCashConfirmDialogOpen] = useState(false)
+  const [cashConfirmOrder, setCashConfirmOrder] = useState<OrderDto | null>(null)
 
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
@@ -203,6 +205,16 @@ export default function OrdersPage() {
     setDeliveryPickupLocation(first?.pickupLocation ?? '')
   }, [selectedOrder, shipmentsByOrderId])
 
+  useEffect(() => {
+    if (!cashConfirmOrder) return
+    const mode = (cashConfirmOrder.deliveryMode as 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP') || 'SELLER_SELF'
+    setDeliveryModeEdit(mode)
+    setDeliveryShippingAddress(cashConfirmOrder.shippingAddress ?? '')
+    const oid = getOrderId(cashConfirmOrder)
+    const shipments = oid ? (shipmentsByOrderId[oid] ?? []) : []
+    setDeliveryPickupLocation(shipments[0]?.pickupLocation ?? '')
+  }, [cashConfirmOrder, shipmentsByOrderId])
+
   const handleSaveDelivery = async () => {
     if (!selectedOrder) return
     const oid = getOrderId(selectedOrder)
@@ -291,10 +303,22 @@ export default function OrdersPage() {
     }
   }
 
-  const handleConfirmCashPayment = async (orderId: string, paymentId: string) => {
+  const openCashConfirmDialog = (order: OrderDto) => {
+    setCashConfirmOrder(order)
+    setDeliveryError(null)
+    setCashConfirmDialogOpen(true)
+  }
+
+  const handleConfirmCashPaymentWithDelivery = async () => {
+    if (!cashConfirmOrder || !cashConfirmOrder.paymentId) return
+    const orderId = getOrderId(cashConfirmOrder)
     setConfirmingCashOrderId(orderId)
     try {
-      await confirmPayment(orderId, paymentId)
+      await confirmPayment(orderId, cashConfirmOrder.paymentId, {
+        deliveryMode: deliveryModeEdit,
+        shippingAddress: deliveryModeEdit !== 'CUSTOMER_PICKUP' ? (deliveryShippingAddress.trim() || undefined) : undefined,
+        pickupLocation: deliveryModeEdit === 'CUSTOMER_PICKUP' ? (deliveryPickupLocation.trim() || undefined) : undefined,
+      })
       const [updatedList, shipmentList] = await Promise.all([
         listOrders(),
         listShipmentsByOrder(orderId),
@@ -305,10 +329,38 @@ export default function OrdersPage() {
         const updated = updatedList.find((o) => getOrderId(o) === orderId)
         if (updated) setSelectedOrder(updated)
       }
+      setCashConfirmDialogOpen(false)
+      setCashConfirmOrder(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to confirm cash payment')
+      setDeliveryError(e instanceof Error ? e.message : 'Failed to confirm cash payment')
     } finally {
       setConfirmingCashOrderId(null)
+    }
+  }
+
+  const handleConfirmCashPayment = async (orderId: string, paymentId: string) => {
+    const order = orders.find((o) => getOrderId(o) === orderId) ?? selectedOrder
+    if (order && getOrderId(order) === orderId) {
+      openCashConfirmDialog(order)
+    } else {
+      setConfirmingCashOrderId(orderId)
+      try {
+        await confirmPayment(orderId, paymentId)
+        const [updatedList, shipmentList] = await Promise.all([
+          listOrders(),
+          listShipmentsByOrder(orderId),
+        ])
+        setOrders(updatedList)
+        setShipmentsByOrderId((prev) => ({ ...prev, [orderId]: shipmentList }))
+        if (selectedOrder && getOrderId(selectedOrder) === orderId) {
+          const updated = updatedList.find((o) => getOrderId(o) === orderId)
+          if (updated) setSelectedOrder(updated)
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to confirm cash payment')
+      } finally {
+        setConfirmingCashOrderId(null)
+      }
     }
   }
 
@@ -1051,6 +1103,81 @@ export default function OrdersPage() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm cash payment: prompt delivery mode before creating shipment */}
+      <Dialog open={cashConfirmDialogOpen} onOpenChange={(open) => { if (!open) { setCashConfirmDialogOpen(false); setCashConfirmOrder(null); setDeliveryError(null) } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Confirm delivery & payment</DialogTitle>
+            <DialogDescription>
+              Set how this order will be delivered, then confirm that you received the cash payment. A shipment will be created with these details.
+            </DialogDescription>
+          </DialogHeader>
+          {cashConfirmOrder && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-sm text-muted-foreground">Order {cashConfirmOrder.orderId || getOrderId(cashConfirmOrder)}</p>
+                <p className="text-xl font-bold text-primary mt-1">{formatPrice(Number(cashConfirmOrder.total))}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1 block">Delivery method</label>
+                <Select value={deliveryModeEdit} onValueChange={(v) => setDeliveryModeEdit(v as typeof deliveryModeEdit)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SELLER_SELF">Seller delivery</SelectItem>
+                    <SelectItem value="COURIER">Courier</SelectItem>
+                    <SelectItem value="RIDER_MARKETPLACE">Rider / marketplace</SelectItem>
+                    <SelectItem value="CUSTOMER_PICKUP">Customer pickup</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {deliveryModeEdit === 'CUSTOMER_PICKUP' ? (
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1 block">Pickup location</label>
+                  <Input
+                    placeholder="Address or place where customer collects"
+                    value={deliveryPickupLocation}
+                    onChange={(e) => setDeliveryPickupLocation(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1 block">Shipping / delivery address</label>
+                  <Input
+                    placeholder="Street, city, postal code"
+                    value={deliveryShippingAddress}
+                    onChange={(e) => setDeliveryShippingAddress(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+              )}
+              {deliveryError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{deliveryError}</AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setCashConfirmDialogOpen(false); setCashConfirmOrder(null) }} disabled={!!confirmingCashOrderId}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              disabled={!cashConfirmOrder || !cashConfirmOrder.paymentId || confirmingCashOrderId === (cashConfirmOrder && getOrderId(cashConfirmOrder))}
+              onClick={handleConfirmCashPaymentWithDelivery}
+            >
+              {cashConfirmOrder && confirmingCashOrderId === getOrderId(cashConfirmOrder) ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Confirm payment & delivery
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
