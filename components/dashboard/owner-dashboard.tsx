@@ -239,7 +239,7 @@ export function OwnerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-foreground">
-                KES {(averageOrderValue / 1000).toFixed(0)}K
+                {formatPrice(averageOrderValue)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">Average per order</p>
             </CardContent>
@@ -261,7 +261,7 @@ export function OwnerDashboard() {
                   <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip
-                    formatter={(value) => `KES ${(Number(value) / 1_000_000).toFixed(1)}M`}
+                    formatter={(value) => formatPrice(Number(value))}
                     contentStyle={{ backgroundColor: 'var(--background)' }}
                   />
                   <Line
@@ -336,7 +336,7 @@ export function OwnerDashboard() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-foreground text-sm">
-                        KES {(order.total / 1000).toFixed(0)}K
+                        {formatPrice(order.total)}
                       </p>
                       <Badge
                         className={

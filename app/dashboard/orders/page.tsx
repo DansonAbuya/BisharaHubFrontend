@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { listOrders, initiatePayment, confirmPayment, cancelOrder, getReviewForOrder, createReview, updateOrderPaymentMethod } from '@/lib/actions/orders'
+import { listOrders, initiatePayment, confirmPayment, cancelOrder, getReviewForOrder, createReview, updateOrderPaymentMethod, updateOrderDelivery } from '@/lib/actions/orders'
 import { listShipmentsByOrder } from '@/lib/actions/shipments'
 import { getInvoiceHtml } from '@/lib/actions/reports'
 import { createDispute } from '@/lib/actions/disputes'
@@ -25,6 +25,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
+import { formatPrice } from '@/lib/utils'
 
 export default function OrdersPage() {
   const { user } = useAuth()
@@ -61,6 +62,11 @@ export default function OrdersPage() {
   const [updatingPaymentMethodOrderId, setUpdatingPaymentMethodOrderId] = useState<string | null>(null)
   const [shipmentsByOrderId, setShipmentsByOrderId] = useState<Record<string, ShipmentDto[]>>({})
   const [shipmentsLoadingOrderId, setShipmentsLoadingOrderId] = useState<string | null>(null)
+  const [deliveryModeEdit, setDeliveryModeEdit] = useState<'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP'>('SELLER_SELF')
+  const [deliveryShippingAddress, setDeliveryShippingAddress] = useState('')
+  const [deliveryPickupLocation, setDeliveryPickupLocation] = useState('')
+  const [deliverySavingOrderId, setDeliverySavingOrderId] = useState<string | null>(null)
+  const [deliveryError, setDeliveryError] = useState<string | null>(null)
 
   const isCustomerView = user?.role === 'customer'
   const canActOnBehalf = user?.role === 'owner' || user?.role === 'staff' || user?.role === 'super_admin'
@@ -183,6 +189,41 @@ export default function OrdersPage() {
     setMpesaPhone('')
     setPaymentInitiated(false)
     setPaymentError('')
+  }
+
+  useEffect(() => {
+    if (!selectedOrder) return
+    setDeliveryError(null)
+    const mode = (selectedOrder.deliveryMode as 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP') || 'SELLER_SELF'
+    setDeliveryModeEdit(mode)
+    setDeliveryShippingAddress(selectedOrder.shippingAddress ?? '')
+    const oid = getOrderId(selectedOrder)
+    const shipments = oid ? (shipmentsByOrderId[oid] ?? []) : []
+    const first = shipments[0]
+    setDeliveryPickupLocation(first?.pickupLocation ?? '')
+  }, [selectedOrder, shipmentsByOrderId])
+
+  const handleSaveDelivery = async () => {
+    if (!selectedOrder) return
+    const oid = getOrderId(selectedOrder)
+    if (!oid) return
+    setDeliverySavingOrderId(oid)
+    setDeliveryError(null)
+    try {
+      const updated = await updateOrderDelivery(oid, {
+        deliveryMode: deliveryModeEdit,
+        shippingAddress: deliveryModeEdit === 'CUSTOMER_PICKUP' ? undefined : (deliveryShippingAddress.trim() || undefined),
+        pickupLocation: deliveryModeEdit === 'CUSTOMER_PICKUP' ? (deliveryPickupLocation.trim() || undefined) : undefined,
+      })
+      setOrders((prev) => prev.map((o) => (getOrderId(o) === oid ? updated : o)))
+      setSelectedOrder(updated)
+      const list = await listShipmentsByOrder(oid)
+      setShipmentsByOrderId((prev) => ({ ...prev, [oid]: list }))
+    } catch (e) {
+      setDeliveryError(e instanceof Error ? e.message : 'Failed to update delivery')
+    } finally {
+      setDeliverySavingOrderId(null)
+    }
   }
 
   const handleRequestCancelOrder = (order: OrderDto) => {
@@ -496,7 +537,7 @@ export default function OrdersPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-lg sm:text-xl font-bold text-primary">
-                      KES {(Number(order.total) / 1000).toFixed(0)}K
+                      {formatPrice(Number(order.total))}
                     </p>
                   </div>
                 </div>
@@ -528,7 +569,7 @@ export default function OrdersPage() {
                   <div className="space-y-1">
                     {order.items?.map((item, idx) => (
                       <p key={idx} className="text-sm text-foreground">
-                        {item.productName} x {item.quantity} = KES {(Number(item.subtotal) / 1000).toFixed(0)}K
+                        {item.productName} x {item.quantity} = {formatPrice(Number(item.subtotal))}
                       </p>
                     ))}
                   </div>
@@ -726,7 +767,7 @@ export default function OrdersPage() {
                     <div key={idx} className="flex justify-between p-2 bg-secondary/50 rounded">
                       <span className="text-foreground">{item.productName}</span>
                       <span className="text-foreground font-medium">
-                        x{item.quantity} = KES {(Number(item.subtotal) / 1000).toFixed(0)}K
+                        x{item.quantity} = {formatPrice(Number(item.subtotal))}
                       </span>
                     </div>
                   ))}
@@ -790,12 +831,76 @@ export default function OrdersPage() {
                 </div>
               )}
 
+              {/* Set delivery (seller: for confirmed orders, e.g. cash – decide where/how to ship) */}
+              {canActOnBehalf && selectedOrder.status === 'confirmed' && (
+                <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+                  <p className="font-semibold text-foreground">Set delivery</p>
+                  <p className="text-xs text-muted-foreground">
+                    Choose how to fulfill this order: ship to an address, use a courier, or customer pickup.
+                  </p>
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-1 block">Delivery method</label>
+                    <Select
+                      value={deliveryModeEdit}
+                      onValueChange={(v) => setDeliveryModeEdit(v as typeof deliveryModeEdit)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="SELLER_SELF">Seller delivery</SelectItem>
+                        <SelectItem value="COURIER">Courier</SelectItem>
+                        <SelectItem value="RIDER_MARKETPLACE">Rider / marketplace</SelectItem>
+                        <SelectItem value="CUSTOMER_PICKUP">Customer pickup</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {deliveryModeEdit === 'CUSTOMER_PICKUP' ? (
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-1 block">Pickup location</label>
+                      <Input
+                        placeholder="Address or place where customer collects"
+                        value={deliveryPickupLocation}
+                        onChange={(e) => setDeliveryPickupLocation(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-1 block">Shipping / delivery address</label>
+                      <Input
+                        placeholder="Street, city, postal code"
+                        value={deliveryShippingAddress}
+                        onChange={(e) => setDeliveryShippingAddress(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
+                  {deliveryError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{deliveryError}</AlertDescription>
+                    </Alert>
+                  )}
+                  <Button
+                    size="sm"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                    disabled={deliverySavingOrderId === getOrderId(selectedOrder)}
+                    onClick={handleSaveDelivery}
+                  >
+                    {deliverySavingOrderId === getOrderId(selectedOrder) ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : null}
+                    Save delivery
+                  </Button>
+                </div>
+              )}
+
               {/* Total and confirmation */}
               <div className="pt-3 border-t border-border space-y-3">
                 <div className="flex justify-between items-center">
                   <p className="text-foreground font-semibold">Total Amount</p>
                   <p className="text-2xl font-bold text-primary">
-                    KES {(Number(selectedOrder.total) / 1000).toFixed(0)}K
+                    {formatPrice(Number(selectedOrder.total))}
                   </p>
                 </div>
                 <div className="rounded-md border border-border bg-muted/30 p-3">
@@ -963,7 +1068,7 @@ export default function OrdersPage() {
               <div className="rounded-lg border border-border bg-muted/30 p-3">
                 <p className="text-sm text-muted-foreground">Order {payOrder.orderId || payOrder.id}</p>
                 <p className="text-xl font-bold text-primary mt-1">
-                  KES {(Number(payOrder.total) / 1000).toFixed(0)}K
+                  {formatPrice(Number(payOrder.total))}
                 </p>
               </div>
               {!paymentInitiated ? (
