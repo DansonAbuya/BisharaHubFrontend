@@ -8,12 +8,17 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+import { PageLoading } from '@/components/layout/page-loading'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Bell, ArrowRight } from 'lucide-react'
 
 export default function NotificationsPage() {
   const router = useRouter()
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
+  const { notifications, unreadCount, markAsRead, markAllAsRead, loading } = useNotifications()
+
+  if (loading) {
+    return <PageLoading message="Loading notifications…" minHeight="200px" />
+  }
 
   const handleOpen = async (id: string, actionUrl?: string | null) => {
     await markAsRead(id)

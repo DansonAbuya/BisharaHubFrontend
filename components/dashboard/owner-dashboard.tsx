@@ -26,6 +26,8 @@ import { DollarSign, Package, ShoppingCart, TrendingUp } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+import { PageLoading } from '@/components/layout/page-loading'
+import { formatPrice } from '@/lib/utils'
 
 function OwnerExportReportButton() {
   const [exporting, setExporting] = useState(false)
@@ -141,6 +143,11 @@ export function OwnerDashboard() {
         .slice(0, 3),
     [products],
   )
+
+  if (loading) {
+    return <PageLoading message="Loading dashboard…" minHeight="280px" />
+  }
+
   const welcomeTitle = user?.businessName
     ? `Welcome back, ${user?.name ?? 'there'} – ${user.businessName}`
     : `Welcome back, ${user?.name ?? 'there'}`
@@ -365,7 +372,7 @@ export function OwnerDashboard() {
                       <div>
                         <p className="font-medium text-foreground text-sm">{product.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          KES {(product.price / 1000).toFixed(0)}K
+                          {formatPrice(product.price)}
                         </p>
                       </div>
                     </div>

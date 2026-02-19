@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
+import { PageLoading } from '@/components/layout/page-loading'
 import { listPendingPayments, matchReceipt, downloadReconciliationReport, type PendingPayment } from '@/lib/actions/reconciliation'
 import { Banknote, Check, Download } from 'lucide-react'
 
@@ -121,7 +122,7 @@ export default function ReconciliationPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <p className="text-sm text-muted-foreground py-4">Loading…</p>
+              <PageLoading message="Loading pending payments…" minHeight="160px" />
             ) : payments.length === 0 ? (
               <div className="text-center py-12">
                 <Banknote className="w-12 h-12 text-muted-foreground mx-auto mb-3" />

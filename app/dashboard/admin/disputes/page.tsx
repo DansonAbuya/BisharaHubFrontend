@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { listDisputes, resolveDispute } from '@/lib/actions/disputes'
 import type { DisputeDto } from '@/lib/api'
-import { Spinner } from '@/components/ui/spinner'
+import { PageLoading } from '@/components/layout/page-loading'
 import {
   Select,
   SelectContent,
@@ -129,9 +129,7 @@ export default function AdminDisputesPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <Spinner className="w-8 h-8" />
-        </div>
+        <PageLoading message="Loading disputes…" minHeight="200px" />
       ) : disputes.length === 0 ? (
         <Card className="border-border">
           <CardContent className="py-12 text-center text-muted-foreground">

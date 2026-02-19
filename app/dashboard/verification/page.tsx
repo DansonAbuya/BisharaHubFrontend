@@ -18,6 +18,7 @@ import {
   uploadVerificationDocumentFile,
 } from '@/lib/actions/verification'
 import type { OwnerVerificationDto, OwnerVerificationDocumentDto } from '@/lib/api'
+import { PageLoading } from '@/components/layout/page-loading'
 import {
   TIER_LABELS,
   DOC_TYPE_LABELS,
@@ -146,9 +147,7 @@ export default function VerificationPage() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-        </div>
+        <PageLoading message="Loading verification status…" minHeight="200px" />
       ) : (
         <>
           {status && (
