@@ -51,8 +51,22 @@ export async function initiatePayment(orderId: string, body: { phoneNumber: stri
   return { ok: true, ...(data as { paymentId: string; checkoutRequestId: string; status: string; message: string }) }
 }
 
-export async function confirmPayment(orderId: string, paymentId: string): Promise<{ status: string; paymentId: string }> {
-  const res = await backendFetch(`/orders/${orderId}/payments/${paymentId}/confirm`, { method: 'PATCH' })
+/** Optional delivery details when confirming cash payment (seller is prompted to set before confirm). */
+export type ConfirmCashPaymentBody = {
+  deliveryMode: 'SELLER_SELF' | 'COURIER' | 'RIDER_MARKETPLACE' | 'CUSTOMER_PICKUP'
+  shippingAddress?: string
+  pickupLocation?: string
+}
+
+export async function confirmPayment(
+  orderId: string,
+  paymentId: string,
+  body?: ConfirmCashPaymentBody
+): Promise<{ status: string; paymentId: string }> {
+  const res = await backendFetch(`/orders/${orderId}/payments/${paymentId}/confirm`, {
+    method: 'PATCH',
+    body: body ? JSON.stringify(body) : undefined,
+  })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error((err as { message?: string }).message || (err as { error?: string }).error || 'Failed to confirm payment')
