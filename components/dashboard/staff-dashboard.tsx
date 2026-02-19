@@ -15,6 +15,7 @@ import type { OrderDto, ShipmentDto } from '@/lib/api'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
 import { PageLoading } from '@/components/layout/page-loading'
+import { formatPrice } from '@/lib/utils'
 
 export function StaffDashboard() {
   const { user } = useAuth()
@@ -150,7 +151,7 @@ export function StaffDashboard() {
                   <div className="grid grid-cols-2 gap-2 text-sm mt-3">
                     <div>
                       <p className="text-muted-foreground">Total:</p>
-                      <p className="font-semibold text-foreground">KES {(order.total / 1000).toFixed(0)}K</p>
+                      <p className="font-semibold text-foreground">{formatPrice(order.total)}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Payment:</p>
