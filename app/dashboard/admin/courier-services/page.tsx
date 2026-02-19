@@ -32,6 +32,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Truck, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 
 export default function AdminCourierServicesPage() {
   const { user } = useAuth()
