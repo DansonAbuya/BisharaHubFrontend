@@ -5,7 +5,7 @@ import * as api from './api'
 import { setAuthCookie, clearAuthCookie } from './actions/auth-cookie'
 import { getCurrentUser as getCurrentUserAction } from './actions/user'
 
-export type UserRole = 'owner' | 'staff' | 'customer' | 'super_admin' | 'assistant_admin'
+export type UserRole = 'owner' | 'staff' | 'customer' | 'courier' | 'super_admin' | 'assistant_admin'
 
 export interface AuthUser {
   id: string
@@ -16,8 +16,16 @@ export interface AuthUser {
   role: UserRole
   businessId?: string
   businessName?: string
-  /** Owner verification: pending, verified, rejected. Required to sell products and offer services. */
+  /** Product seller verification: pending, verified, rejected. */
   verificationStatus?: string | null
+  /** Product seller tier: tier1, tier2, tier3. */
+  sellerTier?: string | null
+  /** Tier the seller is applying for. */
+  applyingForTier?: string | null
+  /** Service provider verification: pending, verified, rejected. */
+  serviceProviderStatus?: string | null
+  /** Service delivery type: ONLINE, PHYSICAL, BOTH. */
+  serviceDeliveryType?: string | null
 }
 
 /** When login or register requires 2FA, we show code step and complete via verifyCode */

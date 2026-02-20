@@ -14,7 +14,7 @@ export interface ExpenseDto {
 
 export async function listExpenses(): Promise<ExpenseDto[]> {
   const res = await backendFetch('/expenses')
-  if (!res.ok) throw new Error('Failed to fetch expenses')
+  if (!res.ok) return []
   const data = await res.json()
   return (data ?? []).map((e: { id: string; category: string; amount: number; description?: string; receiptReference?: string; expenseDate: string; createdAt?: string }) => ({
     id: e.id,

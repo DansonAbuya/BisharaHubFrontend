@@ -15,7 +15,7 @@ export async function getMyVerificationStatus(): Promise<OwnerVerificationDto | 
 
 export async function getMyVerificationDocuments(): Promise<OwnerVerificationDocumentDto[]> {
   const res = await backendFetch('/verification/documents')
-  if (!res.ok) throw new Error('Failed to fetch documents')
+  if (!res.ok) return []
   return res.json()
 }
 
@@ -53,7 +53,7 @@ export async function getServiceProviderStatus(): Promise<OwnerVerificationDto |
 
 export async function getServiceProviderDocuments(): Promise<ServiceProviderDocumentDto[]> {
   const res = await backendFetch('/verification/service-provider/documents')
-  if (!res.ok) throw new Error('Failed to fetch documents')
+  if (!res.ok) return []
   return res.json()
 }
 

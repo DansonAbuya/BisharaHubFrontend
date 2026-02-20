@@ -17,7 +17,7 @@ export async function canOfferServices(): Promise<{ canOffer: boolean; reason: s
 
 export async function listServiceCategories(): Promise<ServiceCategoryDto[]> {
   const res = await backendFetch('/services/categories')
-  if (!res.ok) throw new Error('Failed to fetch service categories')
+  if (!res.ok) return []
   return res.json()
 }
 
@@ -54,7 +54,7 @@ export async function listServices(params?: {
   const qs = search.toString()
   const path = qs ? `/services?${qs}` : '/services'
   const res = await backendFetch(path)
-  if (!res.ok) throw new Error('Failed to fetch services')
+  if (!res.ok) return []
   return res.json()
 }
 
@@ -133,7 +133,7 @@ export async function deleteService(id: string): Promise<void> {
 export async function listAppointments(serviceId?: string): Promise<ServiceAppointmentDto[]> {
   const path = serviceId ? `/services/appointments?serviceId=${serviceId}` : '/services/appointments'
   const res = await backendFetch(path)
-  if (!res.ok) throw new Error('Failed to fetch appointments')
+  if (!res.ok) return []
   return res.json()
 }
 
