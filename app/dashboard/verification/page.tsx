@@ -252,6 +252,8 @@ export default function VerificationPage() {
     setSpQualDocs((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const [submissionSuccess, setSubmissionSuccess] = useState(false)
+
   const handleServiceProviderApply = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!spCategoryId) {
@@ -293,7 +295,7 @@ export default function VerificationPage() {
       setSpLocationLat(undefined)
       setSpLocationLng(undefined)
       setSpLocationDesc('')
-      await load()
+      setSubmissionSuccess(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit application')
     } finally {
@@ -407,6 +409,28 @@ export default function VerificationPage() {
 
       {loading ? (
         <PageLoading message="Loading verification status…" minHeight="200px" />
+      ) : submissionSuccess ? (
+        /* ---------- Submission success screen ---------- */
+        <Card className="border-border">
+          <CardContent className="py-12 text-center">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FileCheck className="w-8 h-8 text-green-600 dark:text-green-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Application Submitted!</h2>
+            <p className="text-muted-foreground max-w-md mx-auto mb-4">
+              Thank you for submitting your verification details. Our team will review your documents and qualifications.
+            </p>
+            <div className="bg-muted/50 rounded-lg p-4 max-w-md mx-auto mb-6">
+              <p className="text-sm text-foreground font-medium mb-1">What happens next?</p>
+              <p className="text-sm text-muted-foreground">
+                You will receive an email notification within 1-3 business days informing you whether your application has been <span className="text-green-600 font-medium">approved</span> or <span className="text-red-600 font-medium">rejected</span>, along with instructions on how to proceed.
+              </p>
+            </div>
+            <Button asChild>
+              <Link href="/">Go to Home</Link>
+            </Button>
+          </CardContent>
+        </Card>
       ) : (tab === 'services' || (showServicesTab && !showProductsTab)) ? (
         /* ---------- Service provider verification ---------- */
         <>

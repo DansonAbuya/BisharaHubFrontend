@@ -75,6 +75,12 @@ export async function createService(data: {
   onlineDeliveryMethods?: string | null
   durationMinutes?: number | null
   isActive?: boolean
+  /** Main image URL to showcase this service */
+  imageUrl?: string | null
+  /** Video URL to demonstrate this service */
+  videoUrl?: string | null
+  /** Comma-separated gallery image URLs */
+  galleryUrls?: string | null
 }): Promise<ServiceOfferingDto> {
   const res = await backendFetch('/services', {
     method: 'POST',
@@ -88,6 +94,9 @@ export async function createService(data: {
       onlineDeliveryMethods: data.onlineDeliveryMethods ?? undefined,
       durationMinutes: data.durationMinutes ?? undefined,
       isActive: data.isActive ?? true,
+      imageUrl: data.imageUrl ?? undefined,
+      videoUrl: data.videoUrl ?? undefined,
+      galleryUrls: data.galleryUrls ?? undefined,
     }),
   })
   if (!res.ok) {
@@ -110,6 +119,12 @@ export async function updateService(
     onlineDeliveryMethods?: string | null
     durationMinutes?: number | null
     isActive?: boolean
+    /** Main image URL to showcase this service */
+    imageUrl?: string | null
+    /** Video URL to demonstrate this service */
+    videoUrl?: string | null
+    /** Comma-separated gallery image URLs */
+    galleryUrls?: string | null
   }
 ): Promise<ServiceOfferingDto> {
   const res = await backendFetch(`/services/${id}`, {
@@ -180,6 +195,25 @@ export async function initiateServiceBookingPayment(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error((err as { error?: string }).error || 'Failed to initiate payment')
+  }
+  return res.json()
+}
+
+/**
+ * Upload service media (image or video) to R2 storage.
+ * Supports images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, MOV, AVI).
+ * Max file size: 20 MB.
+ * 
+ * @returns The public URL of the uploaded file
+ */
+export async function uploadServiceMedia(formData: FormData): Promise<{ url: string }> {
+  const res = await backendFetch('/services/media/upload', {
+    method: 'POST',
+    body: formData,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to upload media')
   }
   return res.json()
 }
