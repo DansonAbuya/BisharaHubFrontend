@@ -72,11 +72,14 @@ function ServicesPageContent() {
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const [loadingProviders, setLoadingProviders] = useState(false)
 
+  // When viewing a single provider, don't filter by category so we show all their services
+  const effectiveCategoryId = businessIdParam ? null : categoryId
+
   useEffect(() => {
     let cancelled = false
     const params = businessIdParam ? { businessId: businessIdParam } : undefined
     Promise.all([
-      listServices({ ...params, categoryId: categoryId ?? undefined }),
+      listServices({ ...params, categoryId: effectiveCategoryId ?? undefined }),
       listBusinesses(),
       listServiceCategories(),
     ])
@@ -96,7 +99,7 @@ function ServicesPageContent() {
     return () => {
       cancelled = true
     }
-  }, [businessIdParam, categoryId])
+  }, [businessIdParam, effectiveCategoryId])
 
   // Load verified service providers for both list and map view (not just map)
   useEffect(() => {
@@ -337,28 +340,6 @@ function ServicesPageContent() {
                 Choose a service below to view details and book.
               </p>
             </div>
-
-            {categories.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-6">
-                <Button
-                  variant={categoryId === null ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setCategoryId(null)}
-                >
-                  All
-                </Button>
-                {categories.map((c) => (
-                  <Button
-                    key={c.id}
-                    variant={categoryId === c.id ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setCategoryId(c.id)}
-                  >
-                    {c.name}
-                  </Button>
-                ))}
-              </div>
-            )}
 
             {loading ? (
               <div className="flex justify-center py-12 gap-2">
