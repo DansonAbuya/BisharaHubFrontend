@@ -4,8 +4,11 @@ import type { NextRequest } from 'next/server'
 /**
  * Redirect HTTP to HTTPS in production so the app uses a secure connection.
  * Skipped on localhost so dev can run over HTTP (no SSL) and avoid ERR_SSL_PROTOCOL_ERROR.
+ * 
+ * Note: In Next.js 16+, this file replaces middleware.ts with the proxy convention.
+ * The proxy is restricted to edge-level network tasks like redirects, rewrites, and header modifications.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const host = request.headers.get('host') || request.nextUrl.host
   const isLocalhost =
     host === 'localhost' ||
