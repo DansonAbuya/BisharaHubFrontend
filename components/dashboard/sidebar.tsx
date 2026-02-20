@@ -33,8 +33,9 @@ export function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname()
 
   // Determine if user is set up for products, services, or both
+  // NOTE: verificationStatus defaults to 'pending' for all owners, so only count 'verified' or explicit tier setup
   const isOwner = user?.role === 'owner'
-  const isProductSeller = !!(user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none'))
+  const isProductSeller = !!(user?.sellerTier || user?.applyingForTier || user?.verificationStatus === 'verified')
   const isServiceProvider = !!(user?.serviceProviderStatus)
   const isVerifiedProductSeller = user?.verificationStatus === 'verified'
   const isVerifiedServiceProvider = user?.serviceProviderStatus === 'verified'
