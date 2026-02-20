@@ -21,6 +21,9 @@ import {
   Banknote,
   Wrench,
   Briefcase,
+  Calendar,
+  CalendarCheck,
+  Clock,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -59,21 +62,25 @@ export function Sidebar({ onClose }: SidebarProps) {
       ]
     : [
         { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
+        // Product seller items
         ...(showProducts ? [
           { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
           { label: 'Products', icon: Package, href: '/dashboard/products' },
-        ] : []),
-        ...(showServices ? [
-          { label: 'Services', icon: Wrench, href: '/dashboard/services' },
-        ] : []),
-        ...(showProducts ? [
           { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
+        ] : []),
+        // Service provider items
+        ...(showServices ? [
+          { label: 'My Services', icon: Wrench, href: '/dashboard/services' },
+          { label: 'Appointments', icon: CalendarCheck, href: '/dashboard/appointments' },
+          { label: 'Schedule', icon: Calendar, href: '/dashboard/schedule' },
+          { label: 'Availability', icon: Clock, href: '/dashboard/availability' },
         ] : []),
         { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
         { label: 'Expenses', icon: Receipt, href: '/dashboard/expenses' },
         { label: 'Accounting', icon: Wallet, href: '/dashboard/accounting' },
         { label: 'Reconciliation', icon: Banknote, href: '/dashboard/reconciliation' },
         { label: 'Staff', icon: Users, href: '/dashboard/staff' },
+        // Couriers only for product sellers
         ...(showProducts ? [
           { label: 'Couriers', icon: Truck, href: '/dashboard/couriers' },
         ] : []),
@@ -149,7 +156,7 @@ export function Sidebar({ onClose }: SidebarProps) {
   const items = user ? (menuItems[user.role as keyof typeof menuItems] ?? menuItems.customer) : []
 
   const operationsItems = items.filter((item) =>
-    ['/dashboard', '/dashboard/orders', '/dashboard/products', '/dashboard/services', '/dashboard/shipments', '/dashboard/courier'].includes(item.href),
+    ['/dashboard', '/dashboard/orders', '/dashboard/products', '/dashboard/services', '/dashboard/shipments', '/dashboard/courier', '/dashboard/appointments', '/dashboard/schedule', '/dashboard/availability'].includes(item.href),
   )
   const analyticsItems = items.filter((item) =>
     ['/dashboard/analytics', '/dashboard/expenses', '/dashboard/accounting', '/dashboard/reconciliation', '/dashboard/staff', '/dashboard/couriers'].includes(item.href),

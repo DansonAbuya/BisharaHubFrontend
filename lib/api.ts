@@ -699,6 +699,12 @@ export interface ServiceOfferingDto {
   onlineDeliveryMethods?: string | null
   durationMinutes: number | null
   isActive: boolean
+  /** Main image URL to showcase this service */
+  imageUrl?: string | null
+  /** Video URL to demonstrate this service (YouTube, Vimeo, or direct link) */
+  videoUrl?: string | null
+  /** Comma-separated list of additional image URLs for this service */
+  galleryUrls?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -727,12 +733,14 @@ export interface ServiceProviderLocationDto {
   ownerId: string
   businessId: string
   businessName: string
+  /** Owner/provider name */
   name: string
   email: string
   phone?: string | null
-  serviceDeliveryType: 'PHYSICAL' | 'BOTH'
-  locationLat: number
-  locationLng: number
+  /** Delivery type: ONLINE, PHYSICAL, or BOTH */
+  serviceDeliveryType?: 'ONLINE' | 'PHYSICAL' | 'BOTH' | null
+  locationLat?: number | null
+  locationLng?: number | null
   locationDescription?: string | null
   serviceCategoryId?: string | null
   serviceCategoryName?: string | null
