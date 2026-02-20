@@ -3,8 +3,9 @@
 /**
  * Public services: first show list of verified service providers (by business).
  * Click a provider to see their services. No sign-in required to browse.
+ * Wrapped in Suspense so useSearchParams() does not break static prerender.
  */
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -52,7 +53,7 @@ function groupByProvider(
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export default function ServicesPage() {
+function ServicesPageContent() {
   const searchParams = useSearchParams()
   const businessIdParam = searchParams.get('businessId')
 
@@ -323,5 +324,33 @@ export default function ServicesPage() {
         )}
       </main>
     </div>
+  )
+}
+
+function ServicesPageFallback() {
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <header className="shrink-0 z-10 safe-area-pt bg-background/95 backdrop-blur-sm border-b border-border">
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="font-semibold text-foreground text-sm sm:text-base">BiasharaHub</span>
+          </div>
+        </div>
+      </header>
+      <main className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 flex items-center justify-center">
+        <div className="flex gap-2">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <span className="text-sm text-muted-foreground">Loading…</span>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+export default function ServicesPage() {
+  return (
+    <Suspense fallback={<ServicesPageFallback />}>
+      <ServicesPageContent />
+    </Suspense>
   )
 }
