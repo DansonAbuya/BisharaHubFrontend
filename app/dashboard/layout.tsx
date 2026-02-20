@@ -90,8 +90,9 @@ function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Check if user is an unverified owner (service provider or product seller)
+  // NOTE: verificationStatus defaults to 'pending' for all owners, so only count 'verified' or explicit tier setup
   const isOwner = user?.role === 'owner'
-  const isProductSeller = !!(user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none'))
+  const isProductSeller = !!(user?.sellerTier || user?.applyingForTier || user?.verificationStatus === 'verified')
   const isServiceProvider = !!(user?.serviceProviderStatus)
   const isVerifiedProductSeller = user?.verificationStatus === 'verified'
   const isVerifiedServiceProvider = user?.serviceProviderStatus === 'verified'
