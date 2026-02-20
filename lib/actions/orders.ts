@@ -5,7 +5,7 @@ import { backendFetch } from '@/lib/server/backend'
 
 export async function listOrders(): Promise<OrderDto[]> {
   const res = await backendFetch('/orders')
-  if (!res.ok) throw new Error('Failed to fetch orders')
+  if (!res.ok) return []
   return res.json()
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { MapPin, Loader2, LocateFixed } from 'lucide-react'
@@ -21,7 +21,10 @@ interface MapComponentProps {
 
 function MapComponentInner({ lat, lng, onLocationChange, disabled }: MapComponentProps) {
   const [L, setL] = useState<typeof import('leaflet') | null>(null)
-  const [mapReady, setMapReady] = useState(false)
+  const [cssLoaded, setCssLoaded] = useState(false)
+  const mapRef = useRef<import('leaflet').Map | null>(null)
+  const markerRef = useRef<import('leaflet').Marker | null>(null)
+  const mapIdRef = useRef(`location-picker-map-${Math.random().toString(36).substr(2, 9)}`)
 
   useEffect(() => {
     import('leaflet').then((leaflet) => {
@@ -30,14 +33,35 @@ function MapComponentInner({ lat, lng, onLocationChange, disabled }: MapComponen
   }, [])
 
   useEffect(() => {
-    if (!L || mapReady) return
+    if (cssLoaded) return
+    const existingLink = document.querySelector('link[href*="leaflet.css"]')
+    if (existingLink) {
+      setCssLoaded(true)
+      return
+    }
 
     const link = document.createElement('link')
     link.rel = 'stylesheet'
     link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
     link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY='
     link.crossOrigin = ''
+    link.onload = () => setCssLoaded(true)
     document.head.appendChild(link)
+  }, [cssLoaded])
+
+  useEffect(() => {
+    if (!L || !cssLoaded) return
+
+    const mapContainer = document.getElementById(mapIdRef.current)
+    if (!mapContainer) return
+
+    if (mapRef.current) {
+      mapRef.current.setView([lat, lng], mapRef.current.getZoom())
+      if (markerRef.current) {
+        markerRef.current.setLatLng([lat, lng])
+      }
+      return
+    }
 
     const customIcon = L.icon({
       iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -49,16 +73,15 @@ function MapComponentInner({ lat, lng, onLocationChange, disabled }: MapComponen
       shadowSize: [41, 41],
     })
 
-    const mapContainer = document.getElementById('location-picker-map')
-    if (!mapContainer) return
-
     const map = L.map(mapContainer).setView([lat, lng], 13)
+    mapRef.current = map
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map)
 
     const marker = L.marker([lat, lng], { icon: customIcon, draggable: !disabled }).addTo(map)
+    markerRef.current = marker
 
     if (!disabled) {
       marker.on('dragend', () => {
@@ -72,14 +95,18 @@ function MapComponentInner({ lat, lng, onLocationChange, disabled }: MapComponen
       })
     }
 
-    setMapReady(true)
+    setTimeout(() => {
+      map.invalidateSize()
+    }, 100)
 
     return () => {
       map.remove()
+      mapRef.current = null
+      markerRef.current = null
     }
-  }, [L, lat, lng, onLocationChange, disabled, mapReady])
+  }, [L, cssLoaded, lat, lng, onLocationChange, disabled])
 
-  if (!L) {
+  if (!L || !cssLoaded) {
     return (
       <div className="h-[300px] w-full rounded-lg border border-border bg-muted/30 flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -87,7 +114,7 @@ function MapComponentInner({ lat, lng, onLocationChange, disabled }: MapComponen
     )
   }
 
-  return <div id="location-picker-map" className="h-[300px] w-full rounded-lg border border-border" />
+  return <div id={mapIdRef.current} className="h-[300px] w-full rounded-lg border border-border" style={{ zIndex: 0 }} />
 }
 
 const MapComponent = dynamic(() => Promise.resolve(MapComponentInner), {

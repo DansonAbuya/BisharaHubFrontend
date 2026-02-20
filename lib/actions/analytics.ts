@@ -5,8 +5,14 @@ import { backendFetch } from '@/lib/server/backend'
 
 export async function getAnalytics(): Promise<AnalyticsSummaryDto> {
   const res = await backendFetch('/analytics')
-  if (res.status === 401 || res.status === 403) throw new Error('Not authorized to view analytics')
-  if (!res.ok) throw new Error('Failed to load analytics')
+  if (!res.ok) {
+    return {
+      totalOrders: 0,
+      totalRevenue: 0,
+      pendingOrders: 0,
+      averageOrderValue: 0,
+    }
+  }
   const data = await res.json()
   return {
     totalOrders: Number(data.totalOrders ?? 0),

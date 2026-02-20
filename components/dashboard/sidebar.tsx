@@ -32,28 +32,46 @@ export function Sidebar({ onClose }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
 
+  // Determine if user is set up for products, services, or both
+  const isProductSeller = !!(user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none'))
+  const isServiceProvider = !!(user?.serviceProviderStatus)
+  // If neither is set, show both (fallback for new users)
+  const showProducts = isProductSeller || (!isProductSeller && !isServiceProvider)
+  const showServices = isServiceProvider || (!isProductSeller && !isServiceProvider)
+
+  // Build owner menu dynamically based on what they're set up for
+  const ownerMenu = [
+    { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
+    ...(showProducts ? [
+      { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
+      { label: 'Products', icon: Package, href: '/dashboard/products' },
+    ] : []),
+    ...(showServices ? [
+      { label: 'Services', icon: Wrench, href: '/dashboard/services' },
+    ] : []),
+    ...(showProducts ? [
+      { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
+    ] : []),
+    { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
+    { label: 'Expenses', icon: Receipt, href: '/dashboard/expenses' },
+    { label: 'Accounting', icon: Wallet, href: '/dashboard/accounting' },
+    { label: 'Reconciliation', icon: Banknote, href: '/dashboard/reconciliation' },
+    { label: 'Staff', icon: Users, href: '/dashboard/staff' },
+    ...(showProducts ? [
+      { label: 'Couriers', icon: Truck, href: '/dashboard/couriers' },
+    ] : []),
+    { label: 'Verification', icon: FileCheck, href: '/dashboard/verification' },
+    { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
+    { label: 'Wishlist (customer)', icon: Package, href: '/dashboard/wishlist' },
+    { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
+  ]
+
   const menuItems = {
     courier: [
       { label: 'My Deliveries', icon: Truck, href: '/dashboard/courier' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' },
     ],
-    owner: [
-      { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
-      { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
-      { label: 'Products', icon: Package, href: '/dashboard/products' },
-      { label: 'Services', icon: Wrench, href: '/dashboard/services' },
-      { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
-      { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
-      { label: 'Expenses', icon: Receipt, href: '/dashboard/expenses' },
-      { label: 'Accounting', icon: Wallet, href: '/dashboard/accounting' },
-      { label: 'Reconciliation', icon: Banknote, href: '/dashboard/reconciliation' },
-      { label: 'Staff', icon: Users, href: '/dashboard/staff' },
-      { label: 'Couriers', icon: Truck, href: '/dashboard/couriers' },
-      { label: 'Verification', icon: FileCheck, href: '/dashboard/verification' },
-      { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
-      { label: 'Wishlist (customer)', icon: Package, href: '/dashboard/wishlist' },
-      { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
-    ],
+    owner: ownerMenu,
     staff: [
       { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
@@ -114,7 +132,7 @@ export function Sidebar({ onClose }: SidebarProps) {
   const items = user ? (menuItems[user.role as keyof typeof menuItems] ?? menuItems.customer) : []
 
   const operationsItems = items.filter((item) =>
-    ['/dashboard', '/dashboard/orders', '/dashboard/products', '/dashboard/services', '/dashboard/shipments', '/dashboard/courier', '/dashboard/expenses', '/dashboard/accounting', '/dashboard/reconciliation'].includes(item.href),
+    ['/dashboard', '/dashboard/orders', '/dashboard/products', '/dashboard/services', '/dashboard/shipments', '/dashboard/courier'].includes(item.href),
   )
   const analyticsItems = items.filter((item) =>
     ['/dashboard/analytics', '/dashboard/expenses', '/dashboard/accounting', '/dashboard/reconciliation', '/dashboard/staff', '/dashboard/couriers'].includes(item.href),

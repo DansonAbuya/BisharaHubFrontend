@@ -10,19 +10,19 @@ import { backendFetch } from '@/lib/server/backend'
 
 export async function listCourierServices(): Promise<CourierServiceDto[]> {
   const res = await backendFetch('/courier-services')
-  if (!res.ok) throw new Error('Failed to fetch courier services')
+  if (!res.ok) return []
   return res.json()
 }
 
 export async function listShipments(): Promise<ShipmentDto[]> {
   const res = await backendFetch('/shipments')
-  if (!res.ok) throw new Error('Failed to fetch shipments')
+  if (!res.ok) return []
   return res.json()
 }
 
 export async function listShipmentsByOrder(orderId: string): Promise<ShipmentDto[]> {
   const res = await backendFetch(`/shipments/order/${orderId}`)
-  if (!res.ok) throw new Error('Failed to fetch shipments for order')
+  if (!res.ok) return []
   return res.json()
 }
 

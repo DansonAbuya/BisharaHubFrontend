@@ -88,7 +88,7 @@ export async function addAssistantAdmin(data: AddAssistantAdminRequest): Promise
 
 export async function listStaff(): Promise<AuthUser[]> {
   const res = await backendFetch('/users/staff')
-  if (!res.ok) throw new Error('Failed to fetch staff')
+  if (!res.ok) return []
   return res.json()
 }
 
@@ -106,7 +106,7 @@ export async function addCourier(data: AddCourierRequest): Promise<AuthUser> {
 
 export async function listCouriers(): Promise<AuthUser[]> {
   const res = await backendFetch('/users/couriers')
-  if (!res.ok) throw new Error('Failed to fetch couriers')
+  if (!res.ok) return []
   return res.json()
 }
 
