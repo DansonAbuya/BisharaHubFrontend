@@ -268,7 +268,7 @@ function ServicesPageContent() {
                 {serviceProviders.map((p) => (
                   <Link
                     key={p.ownerId}
-                    href={`/services?businessId=${encodeURIComponent(p.ownerId)}`}
+                    href={`/services?businessId=${encodeURIComponent(p.businessId)}`}
                     className="block"
                   >
                     <Card className="border-border overflow-hidden hover:border-primary/40 hover:bg-muted/20 transition-colors h-full">
@@ -326,6 +326,16 @@ function ServicesPageContent() {
                   All service providers
                 </Link>
               </Button>
+            </div>
+
+            <div className="mb-6">
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
+                <Wrench className="size-6 text-primary" />
+                Services from {businesses.find((b) => b.id === businessIdParam)?.name ?? 'this provider'}
+              </h1>
+              <p className="mt-1 text-muted-foreground">
+                Choose a service below to view details and book.
+              </p>
             </div>
 
             {categories.length > 0 && (
