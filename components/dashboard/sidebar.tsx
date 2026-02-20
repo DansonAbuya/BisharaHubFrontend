@@ -19,6 +19,7 @@ import {
   Receipt,
   Wallet,
   Banknote,
+  Wrench,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -39,6 +40,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
       { label: 'Products', icon: Package, href: '/dashboard/products' },
+      { label: 'Services', icon: Wrench, href: '/dashboard/services' },
       { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
       { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
       { label: 'Expenses', icon: Receipt, href: '/dashboard/expenses' },
@@ -55,6 +57,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
       { label: 'Products', icon: Package, href: '/dashboard/products' },
+      { label: 'Services', icon: Wrench, href: '/dashboard/services' },
       { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
       { label: 'Expenses', icon: Receipt, href: '/dashboard/expenses' },
       { label: 'Accounting', icon: Wallet, href: '/dashboard/accounting' },
@@ -65,6 +68,7 @@ export function Sidebar({ onClose }: SidebarProps) {
     customer: [
       { label: 'Browse', icon: Store, href: '/dashboard' },
       { label: 'My Orders', icon: ShoppingBag, href: '/dashboard/orders' },
+      { label: 'Services', icon: Wrench, href: '/dashboard/services' },
       { label: 'Wishlist', icon: Package, href: '/dashboard/wishlist' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' },
     ],
@@ -72,6 +76,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
       { label: 'Products', icon: Package, href: '/dashboard/products' },
+      { label: 'Services', icon: Wrench, href: '/dashboard/services' },
       { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
       { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
       { label: 'Expenses', icon: Receipt, href: '/dashboard/expenses' },
@@ -79,7 +84,9 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Reconciliation', icon: Banknote, href: '/dashboard/reconciliation' },
       { label: 'Staff', icon: Users, href: '/dashboard/staff' },
       { label: 'Onboard Business', icon: Shield, href: '/dashboard/admin/owners' },
+      { label: 'Onboard Service Provider', icon: Wrench, href: '/dashboard/admin/onboard-service-provider' },
       { label: 'Verify Business', icon: Shield, href: '/dashboard/admin/pending-verification' },
+      { label: 'Verify Service Providers', icon: Wrench, href: '/dashboard/admin/pending-service-providers' },
       { label: 'Disputes', icon: FileCheck, href: '/dashboard/admin/disputes' },
       { label: 'Assistant Admins', icon: Users, href: '/dashboard/admin/assistant-admins' },
       { label: 'Seller Pricing & Branding', icon: Settings, href: '/dashboard/admin/seller-config' },
@@ -92,7 +99,9 @@ export function Sidebar({ onClose }: SidebarProps) {
     assistant_admin: [
       { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Onboard Business', icon: Shield, href: '/dashboard/admin/owners' },
+      { label: 'Onboard Service Provider', icon: Wrench, href: '/dashboard/admin/onboard-service-provider' },
       { label: 'Verify Business', icon: Shield, href: '/dashboard/admin/pending-verification' },
+      { label: 'Verify Service Providers', icon: Wrench, href: '/dashboard/admin/pending-service-providers' },
       { label: 'Disputes', icon: FileCheck, href: '/dashboard/admin/disputes' },
       { label: 'Courier Services', icon: Truck, href: '/dashboard/admin/courier-services' },
       { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
@@ -102,7 +111,7 @@ export function Sidebar({ onClose }: SidebarProps) {
   const items = user ? (menuItems[user.role as keyof typeof menuItems] ?? menuItems.customer) : []
 
   const operationsItems = items.filter((item) =>
-    ['/dashboard', '/dashboard/orders', '/dashboard/products', '/dashboard/shipments', '/dashboard/courier', '/dashboard/expenses', '/dashboard/accounting', '/dashboard/reconciliation'].includes(item.href),
+    ['/dashboard', '/dashboard/orders', '/dashboard/products', '/dashboard/services', '/dashboard/shipments', '/dashboard/courier', '/dashboard/expenses', '/dashboard/accounting', '/dashboard/reconciliation'].includes(item.href),
   )
   const analyticsItems = items.filter((item) =>
     ['/dashboard/analytics', '/dashboard/expenses', '/dashboard/accounting', '/dashboard/reconciliation', '/dashboard/staff', '/dashboard/couriers'].includes(item.href),

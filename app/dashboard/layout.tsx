@@ -1,7 +1,6 @@
 'use client'
 
-import React, { useState } from "react"
-import { useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
@@ -20,6 +19,7 @@ import {
 const PATH_LABELS: Record<string, string> = {
   orders: 'Orders',
   products: 'Products',
+  services: 'Services',
   shipments: 'Shipments',
   courier: 'My Deliveries',
   couriers: 'Couriers',
@@ -35,7 +35,9 @@ const PATH_LABELS: Record<string, string> = {
   settings: 'Settings',
   admin: 'Admin',
   owners: 'Onboard Business',
+  'onboard-service-provider': 'Onboard Service Provider',
   'pending-verification': 'Verify Business',
+  'pending-service-providers': 'Verify Service Providers',
   'assistant-admins': 'Assistant Admins',
   disputes: 'Disputes',
 }
@@ -76,7 +78,7 @@ function DashboardBreadcrumbs() {
   )
 }
 
-export default function DashboardLayout({
+function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
@@ -127,3 +129,5 @@ export default function DashboardLayout({
     </div>
   )
 }
+
+export default DashboardLayout

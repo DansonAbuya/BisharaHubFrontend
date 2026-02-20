@@ -25,6 +25,8 @@ export interface AuthUser {
   businessId?: string
   businessName?: string
   phone?: string
+  /** Owner verification status: pending, verified, rejected. Used for seller and service provider onboarding. */
+  verificationStatus?: string | null
 }
 
 export interface LoginResponse {
@@ -52,6 +54,13 @@ export interface AddOwnerRequest {
   payoutMethod: string
   /** For MPESA: M-Pesa phone (2547XXXXXXXX or 07XXXXXXXX). For BANK_TRANSFER: bank name and account. */
   payoutDestination: string
+}
+
+/** Onboard service provider: name, email, business/service name. They receive a verification code (temp password) by email. */
+export interface AddServiceProviderRequest {
+  name: string
+  email: string
+  businessName: string
 }
 
 /** Add staff: name + email only; backend sends temp password by email */
@@ -271,6 +280,87 @@ export interface OwnerVerificationDto {
   verificationNotes?: string
   sellerTier?: string
   applyingForTier?: string
+  /** Service provider verification (separate from product seller). */
+  serviceProviderStatus?: string
+  serviceProviderNotes?: string
+  serviceProviderCategoryId?: string
+  serviceDeliveryType?: string
+  serviceProviderVerifiedAt?: string
+  serviceProviderVerifiedByUserId?: string
+}
+
+/** Service provider qualification document. */
+export interface ServiceProviderDocumentDto {
+  documentId: string
+  userId: string
+  documentType: string
+  fileUrl: string
+  uploadedAt: string
+}
+
+/** Owner applies to become a verified service provider. */
+export async function applyServiceProvider(body: {
+  serviceCategoryId: string
+  serviceDeliveryType: 'ONLINE' | 'PHYSICAL' | 'BOTH'
+  documents?: { documentType: string; fileUrl: string }[]
+}): Promise<OwnerVerificationDto> {
+  const res = await fetch(`${API_BASE}/verification/service-provider/apply`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to submit application')
+  }
+  return res.json()
+}
+
+/** Owner: get my service provider verification status. */
+export async function getServiceProviderStatus(): Promise<OwnerVerificationDto | null> {
+  const res = await fetch(`${API_BASE}/verification/service-provider/status`, { headers: getAuthHeaders() })
+  if (!res.ok) return null
+  return res.json()
+}
+
+/** Owner: list my service provider qualification documents. */
+export async function getServiceProviderDocuments(): Promise<ServiceProviderDocumentDto[]> {
+  const res = await fetch(`${API_BASE}/verification/service-provider/documents`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch documents')
+  return res.json()
+}
+
+/** Admin: list owners pending service provider verification. */
+export async function listPendingServiceProviders(): Promise<OwnerVerificationDto[]> {
+  const res = await fetch(`${API_BASE}/verification/admin/pending-service-providers`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Failed to fetch pending service providers')
+  return res.json()
+}
+
+/** Admin: get service provider documents for an owner. */
+export async function getServiceProviderDocumentsForOwner(ownerId: string): Promise<ServiceProviderDocumentDto[]> {
+  const res = await fetch(`${API_BASE}/verification/admin/service-providers/${ownerId}/documents`, {
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) throw new Error('Failed to fetch documents')
+  return res.json()
+}
+
+/** Admin: set service provider verification status (verified | rejected). */
+export async function setServiceProviderVerification(
+  ownerId: string,
+  body: { status: 'verified' | 'rejected'; notes?: string }
+): Promise<OwnerVerificationDto> {
+  const res = await fetch(`${API_BASE}/verification/admin/service-providers/${ownerId}`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update')
+  }
+  return res.json()
 }
 
 /** Verification document (owner uploads; admin reviews). */
@@ -517,6 +607,48 @@ export interface ProductDto {
   image: string | null
   images: string[] | null
   businessId: string | null
+}
+
+/** BiasharaHub Services: category for a service (provider selects, then chooses online or physical). */
+export interface ServiceCategoryDto {
+  id: string
+  name: string
+  displayOrder: number
+}
+
+/** BiasharaHub Services module: service offering (virtual/online or physical). */
+export interface ServiceOfferingDto {
+  id: string
+  name: string
+  categoryId: string | null
+  category: string | null
+  description: string | null
+  price: number
+  businessId: string | null
+  deliveryType: 'VIRTUAL' | 'PHYSICAL'
+  durationMinutes: number | null
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+/** BiasharaHub Services: appointment for a physical service (book then attend). */
+export interface ServiceAppointmentDto {
+  id: string
+  serviceId: string
+  serviceName: string
+  userId: string
+  userName: string
+  requestedDate: string
+  requestedTime: string | null
+  status: string
+  notes: string | null
+  createdAt?: string
+  updatedAt?: string
+  businessId?: string | null
+  /** Payment: amount (service price) and status (pending | completed | failed). */
+  amount?: number | null
+  paymentStatus?: string | null
 }
 
 /** List product categories for dropdown. Public endpoint; auth sent when available. */

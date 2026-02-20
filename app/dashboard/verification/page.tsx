@@ -1,8 +1,9 @@
 'use client'
 
 /**
- * Owner: verification status, required documents per tier, and upload verification documents.
- * Requirements differ by tier: Tier 1 (ID/passport), Tier 2 (business reg + location), Tier 3 (KRA PIN + compliance).
+ * Owner: two verification journeys.
+ * 1) Business verification (sell products): tier, documents, admin approval.
+ * 2) Service provider verification (offer services): category, delivery type, qualification docs, admin approval.
  */
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
@@ -12,12 +13,27 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   getMyVerificationStatus,
   getMyVerificationDocuments,
   uploadVerificationDocument,
   uploadVerificationDocumentFile,
+  getServiceProviderStatus,
+  getServiceProviderDocuments,
+  applyServiceProvider,
 } from '@/lib/actions/verification'
-import type { OwnerVerificationDto, OwnerVerificationDocumentDto } from '@/lib/api'
+import { listServiceCategories } from '@/lib/actions/services'
+import type {
+  OwnerVerificationDto,
+  OwnerVerificationDocumentDto,
+  ServiceProviderDocumentDto,
+} from '@/lib/api'
 import { PageLoading } from '@/components/layout/page-loading'
 import {
   TIER_LABELS,
@@ -28,18 +44,36 @@ import {
   type TierId,
   type DocumentTypeId,
 } from '@/lib/verification-tiers'
-import { FileCheck, Loader2, Upload, ExternalLink } from 'lucide-react'
+import { FileCheck, Loader2, Upload, ExternalLink, Package, Wrench } from 'lucide-react'
+
+type VerificationTab = 'products' | 'services'
+
+const DELIVERY_OPTIONS: { value: 'ONLINE' | 'PHYSICAL' | 'BOTH'; label: string }[] = [
+  { value: 'ONLINE', label: 'Online only' },
+  { value: 'PHYSICAL', label: 'In-person only' },
+  { value: 'BOTH', label: 'Both online and in-person' },
+]
 
 export default function VerificationPage() {
   const { user } = useAuth()
+  const [tab, setTab] = useState<VerificationTab>('products')
   const [status, setStatus] = useState<OwnerVerificationDto | null>(null)
   const [documents, setDocuments] = useState<OwnerVerificationDocumentDto[]>([])
+  const [spStatus, setSpStatus] = useState<OwnerVerificationDto | null>(null)
+  const [spDocuments, setSpDocuments] = useState<ServiceProviderDocumentDto[]>([])
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploadType, setUploadType] = useState<DocumentTypeId>('national_id')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadUrl, setUploadUrl] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [spCategoryId, setSpCategoryId] = useState('')
+  const [spDeliveryType, setSpDeliveryType] = useState<'ONLINE' | 'PHYSICAL' | 'BOTH'>('BOTH')
+  const [spQualFile, setSpQualFile] = useState<File | null>(null)
+  const [spQualUrl, setSpQualUrl] = useState('')
+  const [spQualDocs, setSpQualDocs] = useState<{ documentType: string; fileUrl: string }[]>([])
+  const [spSubmitting, setSpSubmitting] = useState(false)
 
   const isOwner = user?.role === 'owner'
 
@@ -51,12 +85,19 @@ export default function VerificationPage() {
     setLoading(true)
     setError(null)
     try {
-      const [s, docs] = await Promise.all([
+      const [s, docs, spS, spDocs, cats] = await Promise.all([
         getMyVerificationStatus(),
         getMyVerificationDocuments(),
+        getServiceProviderStatus(),
+        getServiceProviderDocuments(),
+        listServiceCategories(),
       ])
       setStatus(s ?? null)
       setDocuments(docs)
+      setSpStatus(spS ?? null)
+      setSpDocuments(spDocs)
+      setCategories(cats)
+      setSpCategoryId((prev) => (prev && cats.some((c) => c.id === prev) ? prev : cats[0]?.id ?? ''))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load verification status')
     } finally {
@@ -69,6 +110,64 @@ export default function VerificationPage() {
   }, [isOwner])
 
   const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB
+
+  const addQualificationDoc = async () => {
+    if (!spQualFile && !spQualUrl.trim()) {
+      setError('Upload a file or enter a document URL')
+      return
+    }
+    setError(null)
+    if (spQualFile) {
+      if (spQualFile.size > MAX_FILE_SIZE_BYTES) {
+        setError('File must be 20 MB or smaller')
+        return
+      }
+      setUploading(true)
+      try {
+        const formData = new FormData()
+        formData.append('documentType', 'qualification')
+        formData.append('file', spQualFile)
+        const doc = await uploadVerificationDocumentFile(formData)
+        setSpQualDocs((prev) => [...prev, { documentType: 'qualification', fileUrl: doc.fileUrl }])
+        setSpQualFile(null)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Upload failed')
+      } finally {
+        setUploading(false)
+      }
+      return
+    }
+    const url = spQualUrl.trim()
+    setSpQualDocs((prev) => [...prev, { documentType: 'qualification', fileUrl: url }])
+    setSpQualUrl('')
+  }
+
+  const removeQualificationDoc = (index: number) => {
+    setSpQualDocs((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleServiceProviderApply = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!spCategoryId || spQualDocs.length === 0) {
+      setError('Select a service category and add at least one qualification document.')
+      return
+    }
+    setSpSubmitting(true)
+    setError(null)
+    try {
+      await applyServiceProvider({
+        serviceCategoryId: spCategoryId,
+        serviceDeliveryType: spDeliveryType,
+        documents: spQualDocs,
+      })
+      setSpQualDocs([])
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit application')
+    } finally {
+      setSpSubmitting(false)
+    }
+  }
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -134,10 +233,31 @@ export default function VerificationPage() {
   return (
     <div className="space-y-6 sm:space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Business verification</h1>
+        <h1 className="text-3xl font-bold text-foreground mb-2">Verification</h1>
         <p className="text-muted-foreground">
-          Submit the documents required for your tier so an administrator can verify your business. Your shop will appear on the platform after verification.
+          Two separate journeys: verify your business to sell products, or apply as a service provider to offer services. You can do one or both.
         </p>
+      </div>
+
+      <div className="flex gap-2 border-b border-border pb-2">
+        <Button
+          variant={tab === 'products' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setTab('products')}
+          className="gap-2"
+        >
+          <Package className="size-4" />
+          Sell products
+        </Button>
+        <Button
+          variant={tab === 'services' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setTab('services')}
+          className="gap-2"
+        >
+          <Wrench className="size-4" />
+          Offer services
+        </Button>
       </div>
 
       {error && (
@@ -148,8 +268,170 @@ export default function VerificationPage() {
 
       {loading ? (
         <PageLoading message="Loading verification status…" minHeight="200px" />
-      ) : (
+      ) : tab === 'services' ? (
+        /* ---------- Service provider verification ---------- */
         <>
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <FileCheck className="w-5 h-5" />
+                Service provider status
+              </CardTitle>
+              <CardDescription>
+                Add your service category and how you deliver (online, in-person, or both). Upload verification and qualification/expertise documents. After submitting here, add your service offerings in Dashboard → Services. An admin will verify your documents; once approved, your services are listed on the platform.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {spStatus && (
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <Badge
+                    variant={
+                      spStatus.serviceProviderStatus === 'verified'
+                        ? 'default'
+                        : spStatus.serviceProviderStatus === 'rejected'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                  >
+                    {spStatus.serviceProviderStatus === 'verified'
+                      ? 'Verified'
+                      : spStatus.serviceProviderStatus === 'rejected'
+                        ? 'Rejected'
+                        : 'Pending'}
+                  </Badge>
+                  {spStatus.serviceProviderNotes && (
+                    <p className="text-sm text-muted-foreground w-full">{spStatus.serviceProviderNotes}</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {(spStatus?.serviceProviderStatus !== 'verified' && spStatus?.serviceProviderStatus !== 'pending') || !spStatus ? (
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Apply as service provider</CardTitle>
+                <CardDescription>
+                  Choose your service category and how you deliver (online, in-person, or both). Upload verification documents and qualification/expertise documents (e.g. certificates, licenses). Then add your service offerings in Dashboard → Services. An admin will verify and approve so your services are listed.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleServiceProviderApply} className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Service category</label>
+                    <Select value={spCategoryId} onValueChange={setSpCategoryId} required>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground">How do you offer services?</label>
+                    <Select
+                      value={spDeliveryType}
+                      onValueChange={(v) => setSpDeliveryType(v as 'ONLINE' | 'PHYSICAL' | 'BOTH')}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DELIVERY_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Verification and qualification / expertise documents</label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Add at least one document (e.g. ID, certificate, license, or proof of expertise). Upload a file or paste a URL. Admin will verify these before approving your service provider account.
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => setSpQualFile(e.target.files?.[0] ?? null)}
+                        className="text-sm text-foreground file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-primary-foreground"
+                      />
+                      <input
+                        type="url"
+                        placeholder="Or paste document URL"
+                        value={spQualUrl}
+                        onChange={(e) => setSpQualUrl(e.target.value)}
+                        className="flex-1 min-w-[180px] h-9 rounded-md border border-border bg-background px-3 text-sm"
+                      />
+                      <Button type="button" variant="outline" size="sm" onClick={addQualificationDoc} disabled={uploading}>
+                        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add'}
+                      </Button>
+                    </div>
+                    {spQualDocs.length > 0 && (
+                      <ul className="space-y-1 mt-2">
+                        {spQualDocs.map((d, i) => (
+                          <li key={i} className="flex items-center justify-between text-sm">
+                            <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate max-w-[200px]">
+                              Document {i + 1}
+                            </a>
+                            <Button type="button" variant="ghost" size="sm" className="h-7 text-destructive" onClick={() => removeQualificationDoc(i)}>
+                              Remove
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <Button type="submit" disabled={spSubmitting || spQualDocs.length === 0}>
+                    {spSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      'Submit application'
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {spDocuments.length > 0 && (
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">My qualification documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {spDocuments.map((d) => (
+                    <li key={d.documentId} className="flex items-center justify-between gap-2 py-2 border-b border-border last:border-0">
+                      <span className="text-sm">{d.documentType}</span>
+                      <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-sm">
+                        View <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ) : (
+        /* ---------- Business (product seller) verification ---------- */
+        <>
+          <div className="mb-2">
+            <h2 className="text-xl font-semibold text-foreground">Product seller verification</h2>
+            <p className="text-sm text-muted-foreground">
+              Submit documents for your tier so an administrator can verify your business. Your shop will appear in the product shops list after verification.
+            </p>
+          </div>
           {status && (
             <Card className="border-border">
               <CardHeader>
