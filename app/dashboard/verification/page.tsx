@@ -44,7 +44,9 @@ import {
   type TierId,
   type DocumentTypeId,
 } from '@/lib/verification-tiers'
-import { FileCheck, Loader2, Upload, ExternalLink, Package, Wrench } from 'lucide-react'
+import { FileCheck, Loader2, Upload, ExternalLink, Package, Wrench, MapPin } from 'lucide-react'
+import { LocationPicker } from '@/components/location-picker'
+import { Textarea } from '@/components/ui/textarea'
 
 type VerificationTab = 'products' | 'services'
 
@@ -70,10 +72,15 @@ export default function VerificationPage() {
   const [uploading, setUploading] = useState(false)
   const [spCategoryId, setSpCategoryId] = useState('')
   const [spDeliveryType, setSpDeliveryType] = useState<'ONLINE' | 'PHYSICAL' | 'BOTH'>('BOTH')
+  const [spLocationLat, setSpLocationLat] = useState<number | undefined>(undefined)
+  const [spLocationLng, setSpLocationLng] = useState<number | undefined>(undefined)
+  const [spLocationDesc, setSpLocationDesc] = useState('')
   const [spQualFile, setSpQualFile] = useState<File | null>(null)
   const [spQualUrl, setSpQualUrl] = useState('')
   const [spQualDocs, setSpQualDocs] = useState<{ documentType: string; fileUrl: string }[]>([])
   const [spSubmitting, setSpSubmitting] = useState(false)
+
+  const needsLocation = spDeliveryType === 'PHYSICAL' || spDeliveryType === 'BOTH'
 
   const isOwner = user?.role === 'owner'
 
@@ -152,15 +159,31 @@ export default function VerificationPage() {
       setError('Select a service category and add at least one qualification document.')
       return
     }
+    if (needsLocation) {
+      if (spLocationLat === undefined || spLocationLng === undefined) {
+        setError('Please select your service location on the map for in-person services.')
+        return
+      }
+      if (!spLocationDesc.trim()) {
+        setError('Please describe your service location (address, landmark, directions).')
+        return
+      }
+    }
     setSpSubmitting(true)
     setError(null)
     try {
       await applyServiceProvider({
         serviceCategoryId: spCategoryId,
         serviceDeliveryType: spDeliveryType,
+        locationLat: needsLocation ? spLocationLat : undefined,
+        locationLng: needsLocation ? spLocationLng : undefined,
+        locationDescription: needsLocation ? spLocationDesc.trim() : undefined,
         documents: spQualDocs,
       })
       setSpQualDocs([])
+      setSpLocationLat(undefined)
+      setSpLocationLng(undefined)
+      setSpLocationDesc('')
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit application')
@@ -235,7 +258,7 @@ export default function VerificationPage() {
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">Verification</h1>
         <p className="text-muted-foreground">
-          Two separate journeys: verify your business to sell products, or apply as a service provider to offer services. You can do one or both.
+          Complete verification for what you want to do on the platform. You can sell products, offer services, or both — each has its own verification process. Complete one or both tabs below.
         </p>
       </div>
 
@@ -283,24 +306,54 @@ export default function VerificationPage() {
             </CardHeader>
             <CardContent>
               {spStatus && (
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <Badge
-                    variant={
-                      spStatus.serviceProviderStatus === 'verified'
-                        ? 'default'
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant={
+                        spStatus.serviceProviderStatus === 'verified'
+                          ? 'default'
+                          : spStatus.serviceProviderStatus === 'rejected'
+                            ? 'destructive'
+                            : 'secondary'
+                      }
+                    >
+                      {spStatus.serviceProviderStatus === 'verified'
+                        ? 'Verified'
                         : spStatus.serviceProviderStatus === 'rejected'
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                  >
-                    {spStatus.serviceProviderStatus === 'verified'
-                      ? 'Verified'
-                      : spStatus.serviceProviderStatus === 'rejected'
-                        ? 'Rejected'
-                        : 'Pending'}
-                  </Badge>
+                          ? 'Rejected'
+                          : 'Pending'}
+                    </Badge>
+                    {spStatus.serviceDeliveryType && (
+                      <Badge variant="outline">
+                        {spStatus.serviceDeliveryType === 'ONLINE'
+                          ? 'Online only'
+                          : spStatus.serviceDeliveryType === 'PHYSICAL'
+                            ? 'In-person only'
+                            : 'Online & In-person'}
+                      </Badge>
+                    )}
+                  </div>
                   {spStatus.serviceProviderNotes && (
-                    <p className="text-sm text-muted-foreground w-full">{spStatus.serviceProviderNotes}</p>
+                    <p className="text-sm text-muted-foreground">{spStatus.serviceProviderNotes}</p>
+                  )}
+                  {spStatus.serviceLocationDescription && (
+                    <div className="pt-2 border-t border-border">
+                      <p className="text-sm font-medium text-foreground flex items-center gap-2 mb-1">
+                        <MapPin className="w-4 h-4" />
+                        Service location
+                      </p>
+                      <p className="text-sm text-muted-foreground">{spStatus.serviceLocationDescription}</p>
+                      {spStatus.serviceLocationLat && spStatus.serviceLocationLng && (
+                        <a
+                          href={`https://www.google.com/maps?q=${spStatus.serviceLocationLat},${spStatus.serviceLocationLng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1"
+                        >
+                          View on Google Maps <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -350,6 +403,42 @@ export default function VerificationPage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {needsLocation && (
+                    <>
+                      <div className="pt-2 border-t border-border">
+                        <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                          <MapPin className="w-4 h-4" />
+                          Service location
+                        </label>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          Since you offer in-person services, please select your service location on the map. This helps customers find you.
+                        </p>
+                        <LocationPicker
+                          lat={spLocationLat}
+                          lng={spLocationLng}
+                          onLocationChange={(lat, lng) => {
+                            setSpLocationLat(lat)
+                            setSpLocationLng(lng)
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-foreground">Location description</label>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Describe your service location — include address, building name, floor, landmark, or directions to help customers find you.
+                        </p>
+                        <Textarea
+                          placeholder="e.g. Westlands Business Centre, 3rd Floor, Room 305. Near Sarit Centre, opposite Total petrol station."
+                          value={spLocationDesc}
+                          onChange={(e) => setSpLocationDesc(e.target.value)}
+                          className="mt-1"
+                          rows={3}
+                        />
+                      </div>
+                    </>
+                  )}
+
                   <div>
                     <label className="text-sm font-medium text-foreground">Verification and qualification / expertise documents</label>
                     <p className="text-xs text-muted-foreground mb-2">

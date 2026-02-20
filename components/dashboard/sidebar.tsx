@@ -20,6 +20,7 @@ import {
   Wallet,
   Banknote,
   Wrench,
+  Briefcase,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -83,7 +84,8 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Accounting', icon: Wallet, href: '/dashboard/accounting' },
       { label: 'Reconciliation', icon: Banknote, href: '/dashboard/reconciliation' },
       { label: 'Staff', icon: Users, href: '/dashboard/staff' },
-      { label: 'Onboard Business', icon: Shield, href: '/dashboard/admin/owners' },
+      { label: 'Onboard Business Owner', icon: Briefcase, href: '/dashboard/admin/onboard-business-owner' },
+      { label: 'Onboard Product Seller', icon: Shield, href: '/dashboard/admin/owners' },
       { label: 'Onboard Service Provider', icon: Wrench, href: '/dashboard/admin/onboard-service-provider' },
       { label: 'Verify Business', icon: Shield, href: '/dashboard/admin/pending-verification' },
       { label: 'Verify Service Providers', icon: Wrench, href: '/dashboard/admin/pending-service-providers' },
@@ -98,7 +100,8 @@ export function Sidebar({ onClose }: SidebarProps) {
     ],
     assistant_admin: [
       { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
-      { label: 'Onboard Business', icon: Shield, href: '/dashboard/admin/owners' },
+      { label: 'Onboard Business Owner', icon: Briefcase, href: '/dashboard/admin/onboard-business-owner' },
+      { label: 'Onboard Product Seller', icon: Shield, href: '/dashboard/admin/owners' },
       { label: 'Onboard Service Provider', icon: Wrench, href: '/dashboard/admin/onboard-service-provider' },
       { label: 'Verify Business', icon: Shield, href: '/dashboard/admin/pending-verification' },
       { label: 'Verify Service Providers', icon: Wrench, href: '/dashboard/admin/pending-service-providers' },

@@ -60,6 +60,9 @@ export async function getServiceProviderDocuments(): Promise<ServiceProviderDocu
 export async function applyServiceProvider(body: {
   serviceCategoryId: string
   serviceDeliveryType: 'ONLINE' | 'PHYSICAL' | 'BOTH'
+  locationLat?: number
+  locationLng?: number
+  locationDescription?: string
   documents?: { documentType: string; fileUrl: string }[]
 }): Promise<OwnerVerificationDto> {
   const res = await backendFetch('/verification/service-provider/apply', {

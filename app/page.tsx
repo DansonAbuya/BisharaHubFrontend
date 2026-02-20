@@ -131,10 +131,10 @@ export default function Home() {
               </span>
             </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight tracking-tight max-w-3xl mx-auto">
-              A platform that helps you <span className="text-primary">sell products and offer services</span>.
+              A platform that helps you <span className="text-primary">sell products, offer services, and monetize your expertise</span>.
             </h1>
             <p className="mt-3 sm:mt-4 text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              Great businesses deserve one system that does it all — from your online store and M-Pesa payments to bookings and one dashboard.
+              Great businesses and skilled professionals deserve one system that does it all — from your online store and M-Pesa payments to service bookings, skills monetization, and one dashboard.
             </p>
             <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row flex-wrap gap-3 justify-center items-center">
               <Button size="lg" className="h-11 px-6 text-sm font-semibold" asChild>
@@ -207,7 +207,7 @@ export default function Home() {
                 <h2 className="text-lg font-semibold text-foreground">Service providers</h2>
               </div>
               <p className="text-sm text-muted-foreground">
-                Find verified professionals who offer services — online, in-person, or both. Expertise and qualifications verified.
+                Find verified professionals who offer their expertise, skills, and talents for payment — online via video/phone calls, in-person, or both. Qualifications verified.
               </p>
               <span className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-2">
                 View verified service providers <Wrench className="size-4" />

@@ -4,6 +4,7 @@ import type {
   ServiceOfferingDto,
   ServiceCategoryDto,
   ServiceAppointmentDto,
+  ServiceProviderLocationDto,
 } from '@/lib/api'
 import { backendFetch } from '@/lib/server/backend'
 
@@ -17,6 +18,23 @@ export async function canOfferServices(): Promise<{ canOffer: boolean; reason: s
 export async function listServiceCategories(): Promise<ServiceCategoryDto[]> {
   const res = await backendFetch('/services/categories')
   if (!res.ok) throw new Error('Failed to fetch service categories')
+  return res.json()
+}
+
+/** List verified service providers with their location info for map-based search. */
+export async function listServiceProviders(params?: {
+  categoryId?: string
+  deliveryType?: 'PHYSICAL' | 'BOTH'
+  search?: string
+}): Promise<ServiceProviderLocationDto[]> {
+  const searchParams = new URLSearchParams()
+  if (params?.categoryId) searchParams.set('categoryId', params.categoryId)
+  if (params?.deliveryType) searchParams.set('deliveryType', params.deliveryType)
+  if (params?.search) searchParams.set('search', params.search)
+  const qs = searchParams.toString()
+  const path = qs ? `/services/providers?${qs}` : '/services/providers'
+  const res = await backendFetch(path)
+  if (!res.ok) throw new Error('Failed to fetch service providers')
   return res.json()
 }
 
@@ -53,6 +71,8 @@ export async function createService(data: {
   description?: string | null
   price: number
   deliveryType: 'VIRTUAL' | 'PHYSICAL'
+  /** Comma-separated online delivery methods for VIRTUAL services */
+  onlineDeliveryMethods?: string | null
   durationMinutes?: number | null
   isActive?: boolean
 }): Promise<ServiceOfferingDto> {
@@ -65,6 +85,7 @@ export async function createService(data: {
       description: data.description ?? undefined,
       price: data.price,
       deliveryType: data.deliveryType,
+      onlineDeliveryMethods: data.onlineDeliveryMethods ?? undefined,
       durationMinutes: data.durationMinutes ?? undefined,
       isActive: data.isActive ?? true,
     }),
@@ -85,6 +106,8 @@ export async function updateService(
     description?: string | null
     price?: number
     deliveryType?: 'VIRTUAL' | 'PHYSICAL'
+    /** Comma-separated online delivery methods for VIRTUAL services */
+    onlineDeliveryMethods?: string | null
     durationMinutes?: number | null
     isActive?: boolean
   }

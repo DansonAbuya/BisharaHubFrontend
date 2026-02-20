@@ -4,6 +4,7 @@
  * Public services: first show list of verified service providers (by business).
  * Click a provider to see their services. No sign-in required to browse.
  * Wrapped in Suspense so useSearchParams() does not break static prerender.
+ * Includes map view for location-based search of physical service providers.
  */
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -19,12 +20,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { listServices, listServiceCategories } from '@/lib/actions/services'
+import { listServices, listServiceCategories, listServiceProviders } from '@/lib/actions/services'
 import { listBusinesses } from '@/lib/actions/products'
-import type { ServiceOfferingDto, ServiceCategoryDto } from '@/lib/api'
+import type { ServiceOfferingDto, ServiceCategoryDto, ServiceProviderLocationDto, OnlineDeliveryMethod } from '@/lib/api'
+import { ONLINE_DELIVERY_METHOD_LABELS } from '@/lib/api'
 import type { BusinessDto } from '@/lib/api'
-import { Wrench, Loader2, Globe, MapPin, Package, ArrowLeft, Store, Menu } from 'lucide-react'
+import { Wrench, Loader2, Globe, MapPin, Package, ArrowLeft, Store, Menu, List, Map as MapIcon } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
+import { ServiceProviderMap } from '@/components/service-provider-map'
 
 const DELIVERY_LABELS: Record<string, string> = {
   VIRTUAL: 'Online',
@@ -63,6 +66,11 @@ function ServicesPageContent() {
   const [loading, setLoading] = useState(true)
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
+  const [serviceProviders, setServiceProviders] = useState<ServiceProviderLocationDto[]>([])
+  const [mapSearchQuery, setMapSearchQuery] = useState('')
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const [loadingProviders, setLoadingProviders] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -89,6 +97,39 @@ function ServicesPageContent() {
       cancelled = true
     }
   }, [businessIdParam, categoryId])
+
+  useEffect(() => {
+    if (viewMode !== 'map' || businessIdParam) return
+    let cancelled = false
+    setLoadingProviders(true)
+    listServiceProviders({
+      categoryId: categoryId ?? undefined,
+      search: mapSearchQuery || undefined,
+    })
+      .then((list) => {
+        if (!cancelled) {
+          setServiceProviders(list)
+          setSelectedProviderId(null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setServiceProviders([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingProviders(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [viewMode, categoryId, mapSearchQuery, businessIdParam])
+
+  const handleProviderClick = (provider: ServiceProviderLocationDto) => {
+    setSelectedProviderId(provider.ownerId)
+  }
+
+  const handleMapSearchChange = (query: string) => {
+    setMapSearchQuery(query)
+  }
 
   const providers = useMemo(() => groupByProvider(services, businesses), [services, businesses])
   const servicesForProvider = useMemo(() => {
@@ -149,16 +190,60 @@ function ServicesPageContent() {
         {showProviderList ? (
           <>
             <div className="mb-6">
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
-                <Wrench className="size-8 text-primary" />
-                Verified service providers
-              </h1>
-              <p className="mt-1 text-muted-foreground">
-                Choose a provider to see their services. All are verified for expertise and qualifications.
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
+                    <Wrench className="size-8 text-primary" />
+                    Verified service providers
+                  </h1>
+                  <p className="mt-1 text-muted-foreground">
+                    Choose a provider to see their services. All are verified for expertise and qualifications.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30 shrink-0">
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                    className="gap-2"
+                  >
+                    <List className="size-4" />
+                    <span className="hidden sm:inline">List</span>
+                  </Button>
+                  <Button
+                    variant={viewMode === 'map' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('map')}
+                    className="gap-2"
+                  >
+                    <MapIcon className="size-4" />
+                    <span className="hidden sm:inline">Map</span>
+                  </Button>
+                </div>
+              </div>
             </div>
 
-            {loading ? (
+            {viewMode === 'map' ? (
+              <>
+                {loadingProviders ? (
+                  <div className="flex justify-center py-12 gap-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">Loading service providers…</span>
+                  </div>
+                ) : (
+                  <ServiceProviderMap
+                    providers={serviceProviders}
+                    onProviderClick={handleProviderClick}
+                    selectedProviderId={selectedProviderId}
+                    onSearchChange={handleMapSearchChange}
+                    searchQuery={mapSearchQuery}
+                  />
+                )}
+                <p className="mt-4 text-sm text-muted-foreground text-center">
+                  Search for service providers by location, name, or browse the map. Click a marker to see their details and services.
+                </p>
+              </>
+            ) : loading ? (
               <div className="flex justify-center py-12 gap-2">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 <span className="text-sm text-muted-foreground">Loading…</span>
@@ -294,6 +379,18 @@ function ServicesPageContent() {
                         <p className="mt-2 font-medium text-foreground">{formatPrice(s.price)}</p>
                         {s.durationMinutes != null && s.durationMinutes > 0 && (
                           <p className="text-xs text-muted-foreground">~{s.durationMinutes} min</p>
+                        )}
+                        {s.deliveryType === 'VIRTUAL' && s.onlineDeliveryMethods && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {s.onlineDeliveryMethods.split(',').slice(0, 3).map((method) => (
+                              <Badge key={method} variant="outline" className="text-xs">
+                                {ONLINE_DELIVERY_METHOD_LABELS[method.trim() as OnlineDeliveryMethod] || method.trim()}
+                              </Badge>
+                            ))}
+                            {s.onlineDeliveryMethods.split(',').length > 3 && (
+                              <Badge variant="outline" className="text-xs">+{s.onlineDeliveryMethods.split(',').length - 3}</Badge>
+                            )}
+                          </div>
                         )}
                       </div>
                       <div className="px-4 pb-4">
