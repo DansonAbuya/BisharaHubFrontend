@@ -39,6 +39,7 @@ import {
   createAppointment,
   updateAppointmentStatus,
   initiateServiceBookingPayment,
+  uploadServiceMedia,
 } from '@/lib/actions/services'
 import type {
   ServiceOfferingDto,
@@ -47,7 +48,7 @@ import type {
   OnlineDeliveryMethod,
 } from '@/lib/api'
 import { ONLINE_DELIVERY_METHOD_LABELS, ONLINE_DELIVERY_METHOD_DESCRIPTIONS } from '@/lib/api'
-import { Wrench, Plus, Edit2, Trash2, Loader2, Monitor, MapPin, Calendar, ShieldCheck, Smartphone } from 'lucide-react'
+import { Wrench, Plus, Edit2, Trash2, Loader2, Monitor, MapPin, Calendar, ShieldCheck, Smartphone, Upload, Image, Video, X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { formatPrice } from '@/lib/utils'
 
@@ -90,6 +91,12 @@ export default function ServicesPage() {
   const [formOnlineDeliveryMethods, setFormOnlineDeliveryMethods] = useState<OnlineDeliveryMethod[]>([])
   const [formDurationMinutes, setFormDurationMinutes] = useState('')
   const [formIsActive, setFormIsActive] = useState(true)
+  const [formImageUrl, setFormImageUrl] = useState('')
+  const [formVideoUrl, setFormVideoUrl] = useState('')
+  const [formGalleryUrls, setFormGalleryUrls] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [uploadingVideo, setUploadingVideo] = useState(false)
+  const [uploadingGallery, setUploadingGallery] = useState(false)
 
   const [bookService, setBookService] = useState<ServiceOfferingDto | null>(null)
   const [bookDate, setBookDate] = useState('')
@@ -176,6 +183,9 @@ export default function ServicesPage() {
     setFormOnlineDeliveryMethods([])
     setFormDurationMinutes('')
     setFormIsActive(true)
+    setFormImageUrl('')
+    setFormVideoUrl('')
+    setFormGalleryUrls('')
     setEditingService(null)
   }
 
@@ -199,6 +209,9 @@ export default function ServicesPage() {
     )
     setFormDurationMinutes(s.durationMinutes != null ? String(s.durationMinutes) : '')
     setFormIsActive(s.isActive)
+    setFormImageUrl(s.imageUrl ?? '')
+    setFormVideoUrl(s.videoUrl ?? '')
+    setFormGalleryUrls(s.galleryUrls ?? '')
     setIsDialogOpen(true)
   }
 
@@ -222,6 +235,9 @@ export default function ServicesPage() {
           onlineDeliveryMethods,
           durationMinutes: formDurationMinutes ? parseInt(formDurationMinutes, 10) : undefined,
           isActive: formIsActive,
+          imageUrl: formImageUrl.trim() || undefined,
+          videoUrl: formVideoUrl.trim() || undefined,
+          galleryUrls: formGalleryUrls.trim() || undefined,
         })
         setServices((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
       } else {
@@ -234,6 +250,9 @@ export default function ServicesPage() {
           onlineDeliveryMethods,
           durationMinutes: formDurationMinutes ? parseInt(formDurationMinutes, 10) : undefined,
           isActive: formIsActive,
+          imageUrl: formImageUrl.trim() || undefined,
+          videoUrl: formVideoUrl.trim() || undefined,
+          galleryUrls: formGalleryUrls.trim() || undefined,
         })
         setServices((prev) => [created, ...prev])
       }
@@ -317,6 +336,45 @@ export default function ServicesPage() {
       setError(e instanceof Error ? e.message : 'Failed to initiate payment')
     } finally {
       setPaySubmitting(false)
+    }
+  }
+
+  const handleMediaUpload = async (
+    file: File,
+    setUrl: (url: string) => void,
+    setUploading: (v: boolean) => void,
+    append?: boolean
+  ) => {
+    const maxSizeMB = 20
+    const warnSizeMB = 15
+    const fileSizeMB = file.size / (1024 * 1024)
+    
+    if (fileSizeMB > maxSizeMB) {
+      setError(`File too large (${fileSizeMB.toFixed(1)}MB). Maximum size is ${maxSizeMB}MB.`)
+      return
+    }
+    
+    if (fileSizeMB > warnSizeMB && file.type.startsWith('video/')) {
+      const proceed = window.confirm(
+        `This video is ${fileSizeMB.toFixed(1)}MB. For best results, we recommend videos under 15MB (about 30 sec - 1 min).\n\nContinue uploading?`
+      )
+      if (!proceed) return
+    }
+    
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const result = await uploadServiceMedia(formData)
+      if (append) {
+        setUrl((prev: string) => (prev ? `${prev}, ${result.url}` : result.url))
+      } else {
+        setUrl(result.url)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to upload media')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -695,6 +753,161 @@ export default function ServicesPage() {
                 placeholder="e.g. 60"
               />
             </div>
+
+            {/* Media section */}
+            <div className="border-t pt-4 mt-2">
+              <h4 className="text-sm font-medium mb-3">Showcase Your Service (optional)</h4>
+              <p className="text-xs text-muted-foreground mb-3">
+                Help customers understand your service with images and videos. Visual content increases bookings by up to 40%!
+              </p>
+              <div className="bg-muted/50 rounded-lg p-3 mb-4 text-xs">
+                <p className="font-medium text-foreground mb-1">📹 Video Recommendations:</p>
+                <ul className="text-muted-foreground space-y-0.5 list-disc list-inside">
+                  <li><strong>Length:</strong> 30 seconds to 2 minutes (ideal for demos)</li>
+                  <li><strong>Format:</strong> MP4 or WebM for best compatibility</li>
+                  <li><strong>Size:</strong> Under 15MB recommended (max 20MB)</li>
+                  <li><strong>Content:</strong> Show your work process, finished results, or customer testimonials</li>
+                </ul>
+              </div>
+              <div className="space-y-4">
+                {/* Main Image */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Image className="size-4" /> Main Image
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="imageUrl"
+                      value={formImageUrl}
+                      onChange={(e) => setFormImageUrl(e.target.value)}
+                      placeholder="https://example.com/image.jpg"
+                      className="flex-1"
+                    />
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleMediaUpload(file, setFormImageUrl, setUploadingImage)
+                          e.target.value = ''
+                        }}
+                        disabled={uploadingImage}
+                      />
+                      <Button type="button" variant="outline" size="sm" disabled={uploadingImage} asChild>
+                        <span>
+                          {uploadingImage ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                        </span>
+                      </Button>
+                    </label>
+                    {formImageUrl && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setFormImageUrl('')}>
+                        <X className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                  {formImageUrl && (
+                    <div className="mt-2">
+                      <img src={formImageUrl} alt="Preview" className="max-h-24 rounded border" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">Main cover image for your service (recommended: 1200x800px or similar)</p>
+                </div>
+
+                {/* Video */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Video className="size-4" /> Demo Video
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="videoUrl"
+                      value={formVideoUrl}
+                      onChange={(e) => setFormVideoUrl(e.target.value)}
+                      placeholder="Upload or paste YouTube/Vimeo URL"
+                      className="flex-1"
+                    />
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleMediaUpload(file, setFormVideoUrl, setUploadingVideo)
+                          e.target.value = ''
+                        }}
+                        disabled={uploadingVideo}
+                      />
+                      <Button type="button" variant="outline" size="sm" disabled={uploadingVideo} asChild>
+                        <span>
+                          {uploadingVideo ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                        </span>
+                      </Button>
+                    </label>
+                    {formVideoUrl && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setFormVideoUrl('')}>
+                        <X className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Best: 30 sec - 1 min demo video. Upload MP4/WebM (max 20MB) or paste YouTube/Vimeo link.
+                  </p>
+                </div>
+
+                {/* Gallery */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Image className="size-4" /> Gallery Images
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="galleryUrls"
+                      value={formGalleryUrls}
+                      onChange={(e) => setFormGalleryUrls(e.target.value)}
+                      placeholder="Add images to showcase your work"
+                      className="flex-1"
+                    />
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleMediaUpload(file, (url) => setFormGalleryUrls(prev => prev ? `${prev}, ${url}` : url), setUploadingGallery)
+                          e.target.value = ''
+                        }}
+                        disabled={uploadingGallery}
+                      />
+                      <Button type="button" variant="outline" size="sm" disabled={uploadingGallery} asChild>
+                        <span>
+                          {uploadingGallery ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                        </span>
+                      </Button>
+                    </label>
+                    {formGalleryUrls && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setFormGalleryUrls('')}>
+                        <X className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                  {formGalleryUrls && (
+                    <div className="flex gap-2 flex-wrap mt-2">
+                      {formGalleryUrls.split(',').map((url, i) => (
+                        <img key={i} src={url.trim()} alt={`Gallery ${i + 1}`} className="h-16 rounded border" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Add 3-5 images showing your work: before/after, process, or finished results
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {editingService && (
               <div className="flex items-center gap-2">
                 <input

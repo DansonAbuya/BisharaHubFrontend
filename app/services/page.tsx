@@ -98,8 +98,9 @@ function ServicesPageContent() {
     }
   }, [businessIdParam, categoryId])
 
+  // Load verified service providers for both list and map view (not just map)
   useEffect(() => {
-    if (viewMode !== 'map' || businessIdParam) return
+    if (businessIdParam) return
     let cancelled = false
     setLoadingProviders(true)
     listServiceProviders({
@@ -121,7 +122,7 @@ function ServicesPageContent() {
     return () => {
       cancelled = true
     }
-  }, [viewMode, categoryId, mapSearchQuery, businessIdParam])
+  }, [categoryId, mapSearchQuery, businessIdParam])
 
   const handleProviderClick = (provider: ServiceProviderLocationDto) => {
     setSelectedProviderId(provider.ownerId)
@@ -243,12 +244,12 @@ function ServicesPageContent() {
                   Search for service providers by location, name, or browse the map. Click a marker to see their details and services.
                 </p>
               </>
-            ) : loading ? (
+            ) : (loading || loadingProviders) ? (
               <div className="flex justify-center py-12 gap-2">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 <span className="text-sm text-muted-foreground">Loading…</span>
               </div>
-            ) : providers.length === 0 ? (
+            ) : serviceProviders.length === 0 ? (
               <Card className="border-border">
                 <CardContent className="py-12 text-center">
                   <Wrench className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
@@ -264,10 +265,10 @@ function ServicesPageContent() {
               </Card>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {providers.map((p) => (
+                {serviceProviders.map((p) => (
                   <Link
-                    key={p.businessId}
-                    href={`/services?businessId=${encodeURIComponent(p.businessId)}`}
+                    key={p.ownerId}
+                    href={`/services?businessId=${encodeURIComponent(p.ownerId)}`}
                     className="block"
                   >
                     <Card className="border-border overflow-hidden hover:border-primary/40 hover:bg-muted/20 transition-colors h-full">
@@ -277,11 +278,21 @@ function ServicesPageContent() {
                             <Wrench className="size-5 text-primary" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <h2 className="font-semibold text-foreground line-clamp-2">{p.name}</h2>
+                            <h2 className="font-semibold text-foreground line-clamp-2">{p.businessName || p.name || 'Service Provider'}</h2>
                             <p className="text-sm text-muted-foreground mt-0.5">
-                              {p.count} service{p.count !== 1 ? 's' : ''}
-                              {p.categories.length > 0 && ` · ${p.categories.slice(0, 2).join(', ')}`}
+                              {p.serviceCategoryName && <span>{p.serviceCategoryName}</span>}
+                              {p.serviceDeliveryType && (
+                                <span className="ml-1">
+                                  · {p.serviceDeliveryType === 'ONLINE' ? 'Online' : p.serviceDeliveryType === 'PHYSICAL' ? 'In-person' : 'Online & In-person'}
+                                </span>
+                              )}
                             </p>
+                            {p.locationDescription && (
+                              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                <MapPin className="size-3" />
+                                <span className="line-clamp-1">{p.locationDescription}</span>
+                              </p>
+                            )}
                             <span className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-2">
                               View services <Store className="size-4" />
                             </span>
