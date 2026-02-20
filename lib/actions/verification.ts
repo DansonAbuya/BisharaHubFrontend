@@ -1,6 +1,10 @@
 'use server'
 
-import type { OwnerVerificationDto, OwnerVerificationDocumentDto } from '@/lib/api'
+import type {
+  OwnerVerificationDto,
+  OwnerVerificationDocumentDto,
+  ServiceProviderDocumentDto,
+} from '@/lib/api'
 import { backendFetch } from '@/lib/server/backend'
 
 export async function getMyVerificationStatus(): Promise<OwnerVerificationDto | null> {
@@ -35,6 +39,36 @@ export async function uploadVerificationDocumentFile(formData: FormData): Promis
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error((err as { error?: string }).error || 'Failed to upload document')
+  }
+  return res.json()
+}
+
+// ---------- Service provider verification (separate journey) ----------
+
+export async function getServiceProviderStatus(): Promise<OwnerVerificationDto | null> {
+  const res = await backendFetch('/verification/service-provider/status')
+  if (!res.ok) return null
+  return res.json()
+}
+
+export async function getServiceProviderDocuments(): Promise<ServiceProviderDocumentDto[]> {
+  const res = await backendFetch('/verification/service-provider/documents')
+  if (!res.ok) throw new Error('Failed to fetch documents')
+  return res.json()
+}
+
+export async function applyServiceProvider(body: {
+  serviceCategoryId: string
+  serviceDeliveryType: 'ONLINE' | 'PHYSICAL' | 'BOTH'
+  documents?: { documentType: string; fileUrl: string }[]
+}): Promise<OwnerVerificationDto> {
+  const res = await backendFetch('/verification/service-provider/apply', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to submit application')
   }
   return res.json()
 }

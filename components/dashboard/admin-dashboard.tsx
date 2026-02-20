@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileCheck, Settings, Shield, UserPlus, Users } from 'lucide-react'
+import { FileCheck, Settings, Shield, UserPlus, Users, Wrench } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
@@ -25,6 +25,24 @@ export function AdminDashboard() {
             <Card className="border-border">
               <CardHeader>
                 <CardTitle className="text-foreground flex items-center gap-2">
+                  <Wrench className="w-5 h-5" />
+                  Onboard Service Provider
+                </CardTitle>
+                <CardDescription>
+                  Create service provider accounts. They receive a verification code by email, then add service details and upload documents for you to verify.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/dashboard/admin/onboard-service-provider">
+                  <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+                    Onboard Service Provider
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground flex items-center gap-2">
                   <FileCheck className="w-5 h-5" />
                   Verify Business
                 </CardTitle>
@@ -34,8 +52,26 @@ export function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <Link href="/dashboard/admin/pending-verification">
-                  <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+                  <Button variant="outline" className="gap-2">
                     Open Verify Business
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground flex items-center gap-2">
+                  <Wrench className="w-5 h-5" />
+                  Verify Service Providers
+                </CardTitle>
+                <CardDescription>
+                  Approve or reject service providers who submitted documents. Once approved, their services are listed on the platform.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/dashboard/admin/pending-service-providers">
+                  <Button variant="outline" className="gap-2">
+                    Open Verify Service Providers
                   </Button>
                 </Link>
               </CardContent>
@@ -95,6 +131,24 @@ export function AdminDashboard() {
           <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-foreground flex items-center gap-2">
+                <Wrench className="w-5 h-5" />
+                Onboard Service Provider
+              </CardTitle>
+              <CardDescription>
+                Create service provider accounts. They receive a verification code by email; they log in, add service details and upload documents. You then verify and approve so their services are listed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/dashboard/admin/onboard-service-provider">
+                <Button variant="outline" className="gap-2">
+                  Onboard Service Provider
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground flex items-center gap-2">
                 <FileCheck className="w-5 h-5" />
                 Verify Business
               </CardTitle>
@@ -106,6 +160,24 @@ export function AdminDashboard() {
               <Link href="/dashboard/admin/pending-verification">
                 <Button variant="outline" className="gap-2">
                   Open Verify Business
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <Wrench className="w-5 h-5" />
+                Verify Service Providers
+              </CardTitle>
+              <CardDescription>
+                Approve or reject service providers who submitted documents. Once approved, their services are listed on the platform.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/dashboard/admin/pending-service-providers">
+                <Button variant="outline" className="gap-2">
+                  Open Verify Service Providers
                 </Button>
               </Link>
             </CardContent>
