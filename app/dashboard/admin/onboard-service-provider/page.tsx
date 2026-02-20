@@ -139,7 +139,7 @@ export default function OnboardServiceProviderPage() {
                 required
               />
             </div>
-            <div className="flex gap-2 pt-2">
+            <div className="pt-2">
               <Button type="submit" disabled={isSubmitting} className="gap-2">
                 {isSubmitting ? (
                   <>
@@ -152,9 +152,6 @@ export default function OnboardServiceProviderPage() {
                     Onboard Service Provider
                   </>
                 )}
-              </Button>
-              <Button type="button" variant="outline" asChild>
-                <Link href="/dashboard/admin/pending-service-providers">Verify Service Providers</Link>
               </Button>
             </div>
           </form>
