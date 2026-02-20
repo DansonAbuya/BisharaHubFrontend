@@ -10,7 +10,8 @@ import { listProducts, getMySellerConfig } from '@/lib/actions/products'
 import { listOrders } from '@/lib/actions/orders'
 import { getAnalytics } from '@/lib/actions/analytics'
 import { getAnalyticsExportCsv } from '@/lib/actions/reports'
-import type { ProductDto, OrderDto, SellerConfigDto } from '@/lib/api'
+import { listServices, listAppointments } from '@/lib/actions/services'
+import type { ProductDto, OrderDto, SellerConfigDto, ServiceOfferingDto, ServiceAppointmentDto } from '@/lib/api'
 import {
   BarChart,
   Bar,
@@ -22,7 +23,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { DollarSign, Package, ShoppingCart, TrendingUp } from 'lucide-react'
+import { DollarSign, Package, ShoppingCart, TrendingUp, Wrench, CalendarCheck, Calendar, Clock } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
@@ -62,6 +63,8 @@ export function OwnerDashboard() {
   const [timeRange] = useState('month')
   const [products, setProducts] = useState<ProductDto[]>([])
   const [orders, setOrders] = useState<OrderDto[]>([])
+  const [services, setServices] = useState<ServiceOfferingDto[]>([])
+  const [appointments, setAppointments] = useState<ServiceAppointmentDto[]>([])
   const [summary, setSummary] = useState<{
     totalOrders: number
     totalRevenue: number
@@ -71,23 +74,49 @@ export function OwnerDashboard() {
   const [loading, setLoading] = useState(true)
   const [sellerConfig, setSellerConfig] = useState<SellerConfigDto | null>(null)
 
+  // Same logic as sidebar: product seller vs service provider
+  const isProductSeller = !!(user?.sellerTier || user?.applyingForTier || user?.verificationStatus === 'verified')
+  const isServiceProvider = !!(user?.serviceProviderStatus)
+  const isVerifiedServiceProvider = user?.serviceProviderStatus === 'verified'
+  const isUnverifiedOwner = user?.role === 'owner' && (
+    (isServiceProvider && !isVerifiedServiceProvider && !isProductSeller) ||
+    (isProductSeller && user?.verificationStatus !== 'verified' && !isServiceProvider) ||
+    (isServiceProvider && isProductSeller && !isVerifiedServiceProvider && user?.verificationStatus !== 'verified') ||
+    (!isServiceProvider && !isProductSeller)
+  )
+  const showProducts = !isUnverifiedOwner && (isProductSeller || (!isProductSeller && !isServiceProvider))
+  const showServices = !isUnverifiedOwner && (isServiceProvider || (!isProductSeller && !isServiceProvider))
+  const serviceProviderOnly = showServices && !showProducts
+
   useEffect(() => {
     let cancelled = false
     async function load() {
       try {
-        const [productsData, ordersData, analyticsRes, configRes] = await Promise.all([
-          listProducts().catch(() => [] as ProductDto[]),
-          listOrders().catch(() => [] as OrderDto[]),
-          getAnalytics().catch(() => null),
-          getMySellerConfig().catch(() => null),
-        ])
+        const promises: [
+          Promise<ProductDto[]>,
+          Promise<OrderDto[]>,
+          Promise<typeof summary>,
+          Promise<SellerConfigDto | null>,
+          Promise<ServiceOfferingDto[]>,
+          Promise<ServiceAppointmentDto[]>,
+        ] = [
+          showProducts ? listProducts().catch(() => []) : Promise.resolve([]),
+          showProducts ? listOrders().catch(() => []) : Promise.resolve([]),
+          showProducts ? getAnalytics().catch(() => null) : Promise.resolve(null),
+          showProducts ? getMySellerConfig().catch(() => null) : Promise.resolve(null),
+          showServices ? listServices().catch(() => []) : Promise.resolve([]),
+          showServices ? listAppointments().catch(() => []) : Promise.resolve([]),
+        ]
+        const [productsData, ordersData, analyticsRes, configRes, servicesData, appointmentsData] = await Promise.all(promises)
         if (cancelled) return
         setProducts(productsData)
         setOrders(ordersData)
+        setServices(servicesData)
+        setAppointments(appointmentsData)
         if (configRes) setSellerConfig(configRes)
         if (analyticsRes) {
           setSummary(analyticsRes)
-        } else {
+        } else if (showProducts) {
           const totalRevenue = ordersData.reduce((sum, o) => sum + (o.total ?? 0), 0)
           const totalOrders = ordersData.length
           const pendingOrders = ordersData.filter((o) => o.status === 'pending').length
@@ -106,7 +135,7 @@ export function OwnerDashboard() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [showProducts, showServices])
 
   const lowStockProducts = products.filter((p) => (p.quantity ?? 0) <= 30)
 
@@ -152,39 +181,149 @@ export function OwnerDashboard() {
     ? `Welcome back, ${user?.name ?? 'there'} – ${user.businessName}`
     : `Welcome back, ${user?.name ?? 'there'}`
 
-  return (
-    <div className="space-y-6 sm:space-y-8">
-      <PageHeader
-        title={welcomeTitle}
-        description={
-          sellerConfig?.pricingPlan === 'growth' ? (
-            <>
-              Track your business performance. Current plan: Growth (KES 1,500 / month).
-              {[sellerConfig?.growthInventoryAutomation, sellerConfig?.growthWhatsappEnabled, sellerConfig?.growthAnalyticsEnabled, sellerConfig?.growthDeliveryIntegrations].some(Boolean) && (
-                <span className="block mt-1 text-xs text-muted-foreground">
-                  Active for you:{' '}
-                  {[
-                    sellerConfig?.growthInventoryAutomation && 'Inventory automation',
-                    sellerConfig?.growthWhatsappEnabled && 'WhatsApp',
-                    sellerConfig?.growthAnalyticsEnabled && 'Analytics',
-                    sellerConfig?.growthDeliveryIntegrations && 'Delivery integrations',
-                  ]
-                    .filter(Boolean)
-                    .join(', ')}
-                </span>
-              )}
-            </>
-          ) : sellerConfig?.pricingPlan === 'pro' ? (
-            'Track your business performance. Current plan: Pro (KES 5,000 / month, includes white-label store).'
-          ) : (
-            'Track your business performance. Current plan: Starter (KES 0 / month).'
-          )
-        }
-        actions={
-          <OwnerExportReportButton />
-        }
-      />
+  const activeServices = services.filter((s) => s.isActive !== false)
+  const pendingAppointments = appointments.filter((a) => a.status === 'PENDING' || a.status === 'pending')
+  const recentAppointments = [...appointments].sort(
+    (a, b) => new Date(b.requestedDate).getTime() - new Date(a.requestedDate).getTime()
+  ).slice(0, 5)
 
+  // Service provider overview (when they only offer services, or as a section when they do both)
+  const serviceOverviewSection = showServices && (
+    <PageSection>
+      <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+        <Wrench className="size-5 text-primary" />
+        Your services at a glance
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-foreground">Active services</CardTitle>
+            <Wrench className="w-4 h-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-foreground">{activeServices.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Listed and bookable</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-foreground">Total appointments</CardTitle>
+            <CalendarCheck className="w-4 h-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-foreground">{appointments.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">All time</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-foreground">Pending</CardTitle>
+            <Clock className="w-4 h-4 text-accent" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-foreground">{pendingAppointments.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Awaiting your action</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-foreground">Quick actions</CardTitle>
+            <Calendar className="w-4 h-4 text-primary" />
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/dashboard/services">My services</Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/dashboard/appointments">Appointments</Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/dashboard/schedule">Schedule</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-foreground">Recent appointments</CardTitle>
+              <CardDescription>Latest booking requests</CardDescription>
+            </div>
+            <Link href="/dashboard/appointments">
+              <Button variant="ghost" size="sm">View all</Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentAppointments.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">No appointments yet</p>
+              ) : (
+                recentAppointments.map((apt) => (
+                  <div
+                    key={apt.id}
+                    className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                  >
+                    <div>
+                      <p className="font-medium text-foreground text-sm">{apt.serviceName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {apt.userName} · {apt.requestedDate}
+                        {apt.requestedTime ? ` ${apt.requestedTime}` : ''}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className={
+                        apt.status === 'PENDING' || apt.status === 'pending'
+                          ? 'bg-accent/30 text-accent'
+                          : apt.status === 'COMPLETED' || apt.status === 'completed'
+                            ? 'bg-primary/30 text-primary'
+                            : ''
+                      }
+                    >
+                      {apt.status}
+                    </Badge>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground">Your active services</CardTitle>
+            <CardDescription>Services customers can book</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {activeServices.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">No active services yet</p>
+              ) : (
+                activeServices.slice(0, 5).map((s) => (
+                  <div key={s.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                    <div>
+                      <p className="font-medium text-foreground text-sm">{s.name}</p>
+                      <p className="text-xs text-muted-foreground">{formatPrice(s.price)}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href="/dashboard/services">Edit</Link>
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </PageSection>
+  )
+
+  // Product seller overview (only when they sell products)
+  const productOverviewSection = showProducts && (
+    <>
       <PageSection>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="border-border">
@@ -202,45 +341,36 @@ export function OwnerDashboard() {
               </p>
             </CardContent>
           </Card>
-
           <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-foreground">Total Orders</CardTitle>
               <ShoppingCart className="w-4 h-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">
-                {totalOrders.toLocaleString()}
-              </div>
+              <div className="text-2xl font-bold text-foreground">{totalOrders.toLocaleString()}</div>
               <p className="text-xs text-primary mt-1 flex items-center gap-1">
                 <TrendingUp className="w-3 h-3" />
                 Orders placed
               </p>
             </CardContent>
           </Card>
-
           <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-foreground">Pending Orders</CardTitle>
               <ShoppingCart className="w-4 h-4 text-accent" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">
-                {pendingOrders}
-              </div>
+              <div className="text-2xl font-bold text-foreground">{pendingOrders}</div>
               <p className="text-xs text-muted-foreground mt-1">Awaiting confirmation</p>
             </CardContent>
           </Card>
-
           <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-foreground">Avg Order Value</CardTitle>
               <DollarSign className="w-4 h-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">
-                {formatPrice(averageOrderValue)}
-              </div>
+              <div className="text-2xl font-bold text-foreground">{formatPrice(averageOrderValue)}</div>
               <p className="text-xs text-muted-foreground mt-1">Average per order</p>
             </CardContent>
           </Card>
@@ -275,7 +405,6 @@ export function OwnerDashboard() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-
           <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-foreground">Low Stock Alert</CardTitle>
@@ -291,17 +420,13 @@ export function OwnerDashboard() {
                     >
                       <div>
                         <p className="font-medium text-foreground text-sm">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {(product.quantity ?? 0)} units left
-                        </p>
+                        <p className="text-xs text-muted-foreground">{(product.quantity ?? 0)} units left</p>
                       </div>
                       <Badge className="bg-accent text-accent-foreground">Reorder</Badge>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground py-8 text-center">
-                    All products well stocked
-                  </p>
+                  <p className="text-sm text-muted-foreground py-8 text-center">All products well stocked</p>
                 )}
               </div>
             </CardContent>
@@ -318,9 +443,7 @@ export function OwnerDashboard() {
                 <CardDescription>Latest customer orders</CardDescription>
               </div>
               <Link href="/dashboard/orders">
-                <Button variant="ghost" size="sm">
-                  View All
-                </Button>
+                <Button variant="ghost" size="sm">View All</Button>
               </Link>
             </CardHeader>
             <CardContent>
@@ -335,9 +458,7 @@ export function OwnerDashboard() {
                       <p className="text-xs text-muted-foreground">{order.orderId ?? order.id}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-foreground text-sm">
-                        {formatPrice(order.total)}
-                      </p>
+                      <p className="font-semibold text-foreground text-sm">{formatPrice(order.total)}</p>
                       <Badge
                         className={
                           order.status === 'pending'
@@ -355,7 +476,6 @@ export function OwnerDashboard() {
               </div>
             </CardContent>
           </Card>
-
           <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-foreground">Top Products</CardTitle>
@@ -371,9 +491,7 @@ export function OwnerDashboard() {
                       </div>
                       <div>
                         <p className="font-medium text-foreground text-sm">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatPrice(product.price)}
-                        </p>
+                        <p className="text-xs text-muted-foreground">{formatPrice(product.price)}</p>
                       </div>
                     </div>
                     <div className="px-3 py-1 bg-primary/10 rounded-full">
@@ -386,6 +504,48 @@ export function OwnerDashboard() {
           </Card>
         </div>
       </PageSection>
+    </>
+  )
+
+  return (
+    <div className="space-y-6 sm:space-y-8">
+      <PageHeader
+        title={welcomeTitle}
+        description={
+          serviceProviderOnly
+            ? 'Manage your services, appointments, and schedule.'
+            : sellerConfig?.pricingPlan === 'growth'
+              ? (
+                  <>
+                    Track your business performance. Current plan: Growth (KES 1,500 / month).
+                    {[sellerConfig?.growthInventoryAutomation, sellerConfig?.growthWhatsappEnabled, sellerConfig?.growthAnalyticsEnabled, sellerConfig?.growthDeliveryIntegrations].some(Boolean) && (
+                      <span className="block mt-1 text-xs text-muted-foreground">
+                        Active for you:{' '}
+                        {[
+                          sellerConfig?.growthInventoryAutomation && 'Inventory automation',
+                          sellerConfig?.growthWhatsappEnabled && 'WhatsApp',
+                          sellerConfig?.growthAnalyticsEnabled && 'Analytics',
+                          sellerConfig?.growthDeliveryIntegrations && 'Delivery integrations',
+                        ]
+                          .filter(Boolean)
+                          .join(', ')}
+                      </span>
+                    )}
+                  </>
+                )
+              : sellerConfig?.pricingPlan === 'pro'
+                ? 'Track your business performance. Current plan: Pro (KES 5,000 / month, includes white-label store).'
+                : 'Track your business performance. Current plan: Starter (KES 0 / month).'
+        }
+        actions={showProducts ? <OwnerExportReportButton /> : undefined}
+      />
+
+      {serviceProviderOnly ? serviceOverviewSection : (
+        <>
+          {serviceOverviewSection}
+          {productOverviewSection}
+        </>
+      )}
     </div>
   )
 }
