@@ -44,7 +44,9 @@ import type {
   ServiceOfferingDto,
   ServiceCategoryDto,
   ServiceAppointmentDto,
+  OnlineDeliveryMethod,
 } from '@/lib/api'
+import { ONLINE_DELIVERY_METHOD_LABELS, ONLINE_DELIVERY_METHOD_DESCRIPTIONS } from '@/lib/api'
 import { Wrench, Plus, Edit2, Trash2, Loader2, Monitor, MapPin, Calendar, ShieldCheck, Smartphone } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { formatPrice } from '@/lib/utils'
@@ -53,6 +55,18 @@ const DELIVERY_OPTIONS = [
   { value: 'VIRTUAL', label: 'Online / Virtual (e.g. online meeting)' },
   { value: 'PHYSICAL', label: 'In-person / Physical (customer books appointment then attends)' },
 ] as const
+
+const ALL_ONLINE_DELIVERY_METHODS: OnlineDeliveryMethod[] = [
+  'VIDEO_CALL',
+  'PHONE_CALL',
+  'WHATSAPP',
+  'LIVE_CHAT',
+  'EMAIL',
+  'SCREEN_SHARE',
+  'FILE_DELIVERY',
+  'RECORDED_CONTENT',
+  'SOCIAL_MEDIA',
+]
 
 export default function ServicesPage() {
   const { user } = useAuth()
@@ -73,6 +87,7 @@ export default function ServicesPage() {
   const [formDescription, setFormDescription] = useState('')
   const [formPrice, setFormPrice] = useState('')
   const [formDeliveryType, setFormDeliveryType] = useState<'VIRTUAL' | 'PHYSICAL'>('PHYSICAL')
+  const [formOnlineDeliveryMethods, setFormOnlineDeliveryMethods] = useState<OnlineDeliveryMethod[]>([])
   const [formDurationMinutes, setFormDurationMinutes] = useState('')
   const [formIsActive, setFormIsActive] = useState(true)
 
@@ -158,6 +173,7 @@ export default function ServicesPage() {
     setFormDescription('')
     setFormPrice('')
     setFormDeliveryType('PHYSICAL')
+    setFormOnlineDeliveryMethods([])
     setFormDurationMinutes('')
     setFormIsActive(true)
     setEditingService(null)
@@ -176,6 +192,11 @@ export default function ServicesPage() {
     setFormDescription(s.description ?? '')
     setFormPrice(String(s.price))
     setFormDeliveryType(s.deliveryType)
+    setFormOnlineDeliveryMethods(
+      s.onlineDeliveryMethods
+        ? (s.onlineDeliveryMethods.split(',').map((m) => m.trim()).filter(Boolean) as OnlineDeliveryMethod[])
+        : []
+    )
     setFormDurationMinutes(s.durationMinutes != null ? String(s.durationMinutes) : '')
     setFormIsActive(s.isActive)
     setIsDialogOpen(true)
@@ -187,6 +208,10 @@ export default function ServicesPage() {
     if (!formName.trim() || isNaN(price) || price < 0 || !formCategoryId) return
     setFormSubmitting(true)
     try {
+      const onlineDeliveryMethods =
+        formDeliveryType === 'VIRTUAL' && formOnlineDeliveryMethods.length > 0
+          ? formOnlineDeliveryMethods.join(',')
+          : undefined
       if (editingService) {
         const updated = await updateService(editingService.id, {
           name: formName.trim(),
@@ -194,6 +219,7 @@ export default function ServicesPage() {
           description: formDescription.trim() || undefined,
           price,
           deliveryType: formDeliveryType,
+          onlineDeliveryMethods,
           durationMinutes: formDurationMinutes ? parseInt(formDurationMinutes, 10) : undefined,
           isActive: formIsActive,
         })
@@ -205,6 +231,7 @@ export default function ServicesPage() {
           description: formDescription.trim() || undefined,
           price,
           deliveryType: formDeliveryType,
+          onlineDeliveryMethods,
           durationMinutes: formDurationMinutes ? parseInt(formDurationMinutes, 10) : undefined,
           isActive: formIsActive,
         })
@@ -428,6 +455,15 @@ export default function ServicesPage() {
                 {s.durationMinutes != null && s.durationMinutes > 0 && (
                   <p className="text-xs text-muted-foreground">Duration: {s.durationMinutes} min</p>
                 )}
+                {s.deliveryType === 'VIRTUAL' && s.onlineDeliveryMethods && (
+                  <div className="flex flex-wrap gap-1">
+                    {s.onlineDeliveryMethods.split(',').map((method) => (
+                      <Badge key={method} variant="outline" className="text-xs">
+                        {ONLINE_DELIVERY_METHOD_LABELS[method.trim() as OnlineDeliveryMethod] || method.trim()}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
                 {!canManage && s.deliveryType === 'PHYSICAL' && s.isActive && (
                   <Button size="sm" variant="outline" className="w-full mt-2" onClick={() => openBookAppointment(s)}>
                     <Calendar className="mr-2 h-4 w-4" />
@@ -593,6 +629,40 @@ export default function ServicesPage() {
                 </SelectContent>
               </Select>
             </div>
+            {formDeliveryType === 'VIRTUAL' && (
+              <div>
+                <Label className="mb-2 block">How will you deliver this service? (select all that apply)</Label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {ALL_ONLINE_DELIVERY_METHODS.map((method) => (
+                    <label
+                      key={method}
+                      className={`flex items-center gap-2 rounded-md border p-2 cursor-pointer transition-colors ${
+                        formOnlineDeliveryMethods.includes(method)
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:bg-muted/50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formOnlineDeliveryMethods.includes(method)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormOnlineDeliveryMethods((prev) => [...prev, method])
+                          } else {
+                            setFormOnlineDeliveryMethods((prev) => prev.filter((m) => m !== method))
+                          }
+                        }}
+                        className="shrink-0"
+                      />
+                      <span className="text-sm">{ONLINE_DELIVERY_METHOD_LABELS[method]}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Let customers know how you&apos;ll provide this service online.
+                </p>
+              </div>
+            )}
             <div>
               <Label htmlFor="description">Description</Label>
               <Input

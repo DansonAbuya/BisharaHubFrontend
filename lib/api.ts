@@ -63,6 +63,23 @@ export interface AddServiceProviderRequest {
   businessName: string
 }
 
+/** Onboard business owner who can sell products, offer services, or both. */
+export interface AddBusinessOwnerRequest {
+  name: string
+  email: string
+  businessName: string
+  /** If true, owner intends to sell products and must complete product seller verification. */
+  sellsProducts: boolean
+  /** If true, owner intends to offer services and must complete service provider verification. */
+  offersServices: boolean
+  /** Tier (tier1, tier2, tier3). Required if sellsProducts is true. */
+  applyingForTier?: string
+  /** Payout method: MPESA or BANK_TRANSFER. Required if sellsProducts is true. */
+  payoutMethod?: string
+  /** Payout destination (M-Pesa number or bank account). Required if sellsProducts is true. */
+  payoutDestination?: string
+}
+
 /** Add staff: name + email only; backend sends temp password by email */
 export interface AddStaffRequest {
   name: string
@@ -285,6 +302,9 @@ export interface OwnerVerificationDto {
   serviceProviderNotes?: string
   serviceProviderCategoryId?: string
   serviceDeliveryType?: string
+  serviceLocationLat?: number
+  serviceLocationLng?: number
+  serviceLocationDescription?: string
   serviceProviderVerifiedAt?: string
   serviceProviderVerifiedByUserId?: string
 }
@@ -302,6 +322,9 @@ export interface ServiceProviderDocumentDto {
 export async function applyServiceProvider(body: {
   serviceCategoryId: string
   serviceDeliveryType: 'ONLINE' | 'PHYSICAL' | 'BOTH'
+  locationLat?: number
+  locationLng?: number
+  locationDescription?: string
   documents?: { documentType: string; fileUrl: string }[]
 }): Promise<OwnerVerificationDto> {
   const res = await fetch(`${API_BASE}/verification/service-provider/apply`, {
@@ -616,6 +639,44 @@ export interface ServiceCategoryDto {
   displayOrder: number
 }
 
+/** Online delivery method options for virtual services */
+export type OnlineDeliveryMethod =
+  | 'VIDEO_CALL'
+  | 'PHONE_CALL'
+  | 'WHATSAPP'
+  | 'LIVE_CHAT'
+  | 'EMAIL'
+  | 'SCREEN_SHARE'
+  | 'FILE_DELIVERY'
+  | 'RECORDED_CONTENT'
+  | 'SOCIAL_MEDIA'
+
+/** Human-readable labels for online delivery methods */
+export const ONLINE_DELIVERY_METHOD_LABELS: Record<OnlineDeliveryMethod, string> = {
+  VIDEO_CALL: 'Video Call',
+  PHONE_CALL: 'Phone Call',
+  WHATSAPP: 'WhatsApp',
+  LIVE_CHAT: 'Live Chat',
+  EMAIL: 'Email',
+  SCREEN_SHARE: 'Screen Share',
+  FILE_DELIVERY: 'File Delivery',
+  RECORDED_CONTENT: 'Recorded Content',
+  SOCIAL_MEDIA: 'Social Media',
+}
+
+/** Descriptions for online delivery methods */
+export const ONLINE_DELIVERY_METHOD_DESCRIPTIONS: Record<OnlineDeliveryMethod, string> = {
+  VIDEO_CALL: 'Live video session via Zoom, Google Meet, or similar',
+  PHONE_CALL: 'Voice call consultation',
+  WHATSAPP: 'Chat, voice, or video via WhatsApp',
+  LIVE_CHAT: 'Real-time text chat session',
+  EMAIL: 'Service delivered via email correspondence',
+  SCREEN_SHARE: 'Remote desktop or screen sharing session',
+  FILE_DELIVERY: 'Digital files delivered (documents, designs, etc.)',
+  RECORDED_CONTENT: 'Pre-recorded videos, tutorials, or courses',
+  SOCIAL_MEDIA: 'Service via Instagram, Facebook, or other platforms',
+}
+
 /** BiasharaHub Services module: service offering (virtual/online or physical). */
 export interface ServiceOfferingDto {
   id: string
@@ -626,6 +687,8 @@ export interface ServiceOfferingDto {
   price: number
   businessId: string | null
   deliveryType: 'VIRTUAL' | 'PHYSICAL'
+  /** Comma-separated list of online delivery methods (for VIRTUAL services) */
+  onlineDeliveryMethods?: string | null
   durationMinutes: number | null
   isActive: boolean
   createdAt?: string
@@ -649,6 +712,23 @@ export interface ServiceAppointmentDto {
   /** Payment: amount (service price) and status (pending | completed | failed). */
   amount?: number | null
   paymentStatus?: string | null
+}
+
+/** Service provider with location info for map-based search. */
+export interface ServiceProviderLocationDto {
+  ownerId: string
+  businessId: string
+  businessName: string
+  name: string
+  email: string
+  phone?: string | null
+  serviceDeliveryType: 'PHYSICAL' | 'BOTH'
+  locationLat: number
+  locationLng: number
+  locationDescription?: string | null
+  serviceCategoryId?: string | null
+  serviceCategoryName?: string | null
+  serviceCount: number
 }
 
 /** List product categories for dropdown. Public endpoint; auth sent when available. */

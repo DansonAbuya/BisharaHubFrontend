@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileCheck, Settings, Shield, UserPlus, Users, Wrench } from 'lucide-react'
+import { Briefcase, FileCheck, Settings, Shield, UserPlus, Users, Wrench } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
@@ -25,17 +25,18 @@ export function AdminDashboard() {
             <Card className="border-border">
               <CardHeader>
                 <CardTitle className="text-foreground flex items-center gap-2">
-                  <Wrench className="w-5 h-5" />
-                  Onboard Service Provider
+                  <Briefcase className="w-5 h-5" />
+                  Onboard Business Owner
                 </CardTitle>
                 <CardDescription>
-                  Create service provider accounts. They receive a verification code by email, then add service details and upload documents for you to verify.
+                  Onboard someone who wants to sell products, offer services, or both. They choose what they want to do and complete the relevant verification.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Link href="/dashboard/admin/onboard-service-provider">
+                <Link href="/dashboard/admin/onboard-business-owner">
                   <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
-                    Onboard Service Provider
+                    <UserPlus className="w-4 h-4" />
+                    Onboard Business Owner
                   </Button>
                 </Link>
               </CardContent>
@@ -112,18 +113,37 @@ export function AdminDashboard() {
           <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-foreground flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                Onboard Business
+                <Briefcase className="w-5 h-5" />
+                Onboard Business Owner
               </CardTitle>
               <CardDescription>
-                Onboard new businesses (business admin name, business email, business name, tier). A temporary password is sent to the business email; the admin starts as pending verification.
+                Onboard someone who wants to sell products, offer services, or both. They choose what they want to do and complete the relevant verification.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/dashboard/admin/onboard-business-owner">
+                <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+                  <UserPlus className="w-4 h-4" />
+                  Onboard Business Owner
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                Onboard Product Seller Only
+              </CardTitle>
+              <CardDescription>
+                Onboard new product sellers (business admin name, email, business name, tier). For businesses that only sell products.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/dashboard/admin/owners">
-                <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button variant="outline" className="gap-2">
                   <UserPlus className="w-4 h-4" />
-                  Onboard Business
+                  Onboard Product Seller
                 </Button>
               </Link>
             </CardContent>
@@ -132,10 +152,10 @@ export function AdminDashboard() {
             <CardHeader>
               <CardTitle className="text-foreground flex items-center gap-2">
                 <Wrench className="w-5 h-5" />
-                Onboard Service Provider
+                Onboard Service Provider Only
               </CardTitle>
               <CardDescription>
-                Create service provider accounts. They receive a verification code by email; they log in, add service details and upload documents. You then verify and approve so their services are listed.
+                Onboard new service providers. For people who only offer services (expertise, skills, talents).
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Mail, MessageCircle, ArrowLeft } from 'lucide-react'
+import { Mail, MessageCircle, Phone, ArrowLeft } from 'lucide-react'
 
 export default function ContactPage() {
   return (
@@ -44,8 +44,20 @@ export default function ContactPage() {
             </CardHeader>
             <CardContent className="flex items-center gap-3">
               <Mail className="size-5 text-primary shrink-0" />
-              <a href="mailto:support@biasharahub.com" className="text-primary font-medium hover:underline">
-                support@biasharahub.com
+              <a href="mailto:biasharahub@sysnovatechnologies.com" className="text-primary font-medium hover:underline">
+                biasharahub@sysnovatechnologies.com
+              </a>
+            </CardContent>
+          </Card>
+          <Card className="border-border mt-4">
+            <CardHeader>
+              <CardTitle className="text-base">Phone</CardTitle>
+              <CardDescription>Call us for enquiries and support.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex items-center gap-3">
+              <Phone className="size-5 text-primary shrink-0" />
+              <a href="tel:+254703520023" className="text-primary font-medium hover:underline">
+                0703520023
               </a>
             </CardContent>
           </Card>
@@ -56,7 +68,14 @@ export default function ContactPage() {
             </CardHeader>
             <CardContent className="flex items-center gap-3">
               <MessageCircle className="size-5 text-primary shrink-0" />
-              <span className="text-muted-foreground text-sm">Available on request via email.</span>
+              <a
+                href="https://wa.me/254703520023"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-medium hover:underline"
+              >
+                0703520023
+              </a>
             </CardContent>
           </Card>
           <p className="text-xs text-muted-foreground mt-6">

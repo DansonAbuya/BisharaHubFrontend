@@ -4,6 +4,7 @@ import type {
   AuthUser,
   AddOwnerRequest,
   AddServiceProviderRequest,
+  AddBusinessOwnerRequest,
   AddStaffRequest,
   AddCourierRequest,
   AddAssistantAdminRequest,
@@ -42,6 +43,21 @@ export async function addServiceProvider(data: AddServiceProviderRequest): Promi
     if (res.status === 401) throw new Error(msg || 'Session expired. Please sign in again.')
     if (res.status === 403) throw new Error(msg || 'You do not have permission to onboard service providers.')
     throw new Error(msg || 'Failed to onboard service provider')
+  }
+  return res.json()
+}
+
+export async function addBusinessOwner(data: AddBusinessOwnerRequest): Promise<AuthUser> {
+  const res = await backendFetch('/admin/business-owners', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    const msg = (err as { message?: string }).message || (err as { error?: string }).error
+    if (res.status === 401) throw new Error(msg || 'Session expired. Please sign in again.')
+    if (res.status === 403) throw new Error(msg || 'You do not have permission to onboard business owners.')
+    throw new Error(msg || 'Failed to onboard business owner')
   }
   return res.json()
 }
