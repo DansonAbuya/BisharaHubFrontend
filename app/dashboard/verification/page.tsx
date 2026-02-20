@@ -461,10 +461,13 @@ export default function VerificationPage() {
             </CardContent>
           </Card>
 
-          {(spStatus?.serviceProviderStatus !== 'verified' && spStatus?.serviceProviderStatus !== 'pending') || !spStatus ? (
+          {/* Show form if: status is pending (need to submit details), rejected (can resubmit), or no status yet. Hide only if verified. */}
+          {spStatus?.serviceProviderStatus !== 'verified' && (
             <Card className="border-border">
               <CardHeader>
-                <CardTitle className="text-foreground">Apply as service provider</CardTitle>
+                <CardTitle className="text-foreground">
+                  {spStatus?.serviceProviderStatus === 'rejected' ? 'Resubmit verification' : 'Complete verification'}
+                </CardTitle>
                 <CardDescription>
                   Choose your service category and how you deliver (online, in-person, or both). Upload verification documents and qualification/expertise documents (e.g. certificates, licenses). Then add your service offerings in Dashboard → Services. An admin will verify and approve so your services are listed.
                 </CardDescription>
@@ -633,7 +636,7 @@ export default function VerificationPage() {
                 </form>
               </CardContent>
             </Card>
-          ) : null}
+          )}
 
           {spDocuments.length > 0 && (
             <Card className="border-border">
