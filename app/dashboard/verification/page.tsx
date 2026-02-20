@@ -92,9 +92,11 @@ export default function VerificationPage() {
   // Determine what type of owner this is based on BOTH user context AND fetched status
   // User context has serviceProviderStatus, sellerTier, etc. from /me endpoint
   // Status objects come from verification endpoints
+  // NOTE: verificationStatus defaults to 'pending' for all owners, so we can't use it alone to detect product sellers
+  // We need sellerTier or applyingForTier to be set, OR verificationStatus to be 'verified' (meaning they completed product verification)
   const isSetUpForProducts = !!(
-    user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none') ||
-    status?.sellerTier || status?.applyingForTier || (status?.verificationStatus && status.verificationStatus !== 'none')
+    user?.sellerTier || user?.applyingForTier || user?.verificationStatus === 'verified' ||
+    status?.sellerTier || status?.applyingForTier || status?.verificationStatus === 'verified'
   )
   const isSetUpForServices = !!(
     user?.serviceProviderStatus ||
@@ -129,9 +131,10 @@ export default function VerificationPage() {
       
       // Auto-select the appropriate tab based on what the user is set up for
       // Check BOTH user context and fetched status
+      // NOTE: verificationStatus defaults to 'pending' for all owners, so only count 'verified' as product setup
       const hasProductSetup = !!(
-        user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none') ||
-        s?.sellerTier || s?.applyingForTier || (s?.verificationStatus && s.verificationStatus !== 'none')
+        user?.sellerTier || user?.applyingForTier || user?.verificationStatus === 'verified' ||
+        s?.sellerTier || s?.applyingForTier || s?.verificationStatus === 'verified'
       )
       const hasServiceSetup = !!(user?.serviceProviderStatus || spS?.serviceProviderStatus)
       
@@ -154,7 +157,8 @@ export default function VerificationPage() {
 
   // Immediately set tab based on user context (before data loads)
   useEffect(() => {
-    const hasProductSetup = !!(user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none'))
+    // NOTE: verificationStatus defaults to 'pending' for all owners, so only count 'verified' as product setup
+    const hasProductSetup = !!(user?.sellerTier || user?.applyingForTier || user?.verificationStatus === 'verified')
     const hasServiceSetup = !!(user?.serviceProviderStatus)
     if (hasServiceSetup && !hasProductSetup) {
       setTab('services')
