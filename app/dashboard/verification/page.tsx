@@ -75,6 +75,11 @@ export default function VerificationPage() {
   const [spLocationLat, setSpLocationLat] = useState<number | undefined>(undefined)
   const [spLocationLng, setSpLocationLng] = useState<number | undefined>(undefined)
   const [spLocationDesc, setSpLocationDesc] = useState('')
+  // Verification documents (ID, proof of identity)
+  const [spVerifFile, setSpVerifFile] = useState<File | null>(null)
+  const [spVerifUrl, setSpVerifUrl] = useState('')
+  const [spVerifDocs, setSpVerifDocs] = useState<{ documentType: string; fileUrl: string }[]>([])
+  // Qualification/expertise documents (certificates, licenses)
   const [spQualFile, setSpQualFile] = useState<File | null>(null)
   const [spQualUrl, setSpQualUrl] = useState('')
   const [spQualDocs, setSpQualDocs] = useState<{ documentType: string; fileUrl: string }[]>([])
@@ -137,6 +142,41 @@ export default function VerificationPage() {
 
   const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB
 
+  const addVerificationDoc = async () => {
+    if (!spVerifFile && !spVerifUrl.trim()) {
+      setError('Upload a file or enter a document URL')
+      return
+    }
+    setError(null)
+    if (spVerifFile) {
+      if (spVerifFile.size > MAX_FILE_SIZE_BYTES) {
+        setError('File must be 20 MB or smaller')
+        return
+      }
+      setUploading(true)
+      try {
+        const formData = new FormData()
+        formData.append('documentType', 'verification')
+        formData.append('file', spVerifFile)
+        const doc = await uploadVerificationDocumentFile(formData)
+        setSpVerifDocs((prev) => [...prev, { documentType: 'verification', fileUrl: doc.fileUrl }])
+        setSpVerifFile(null)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Upload failed')
+      } finally {
+        setUploading(false)
+      }
+      return
+    }
+    const url = spVerifUrl.trim()
+    setSpVerifDocs((prev) => [...prev, { documentType: 'verification', fileUrl: url }])
+    setSpVerifUrl('')
+  }
+
+  const removeVerificationDoc = (index: number) => {
+    setSpVerifDocs((prev) => prev.filter((_, i) => i !== index))
+  }
+
   const addQualificationDoc = async () => {
     if (!spQualFile && !spQualUrl.trim()) {
       setError('Upload a file or enter a document URL')
@@ -174,8 +214,16 @@ export default function VerificationPage() {
 
   const handleServiceProviderApply = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!spCategoryId || spQualDocs.length === 0) {
-      setError('Select a service category and add at least one qualification document.')
+    if (!spCategoryId) {
+      setError('Select a service category.')
+      return
+    }
+    if (spVerifDocs.length === 0) {
+      setError('Add at least one verification document (ID, proof of identity).')
+      return
+    }
+    if (spQualDocs.length === 0) {
+      setError('Add at least one qualification/expertise document (certificate, license, portfolio).')
       return
     }
     if (needsLocation) {
@@ -191,14 +239,16 @@ export default function VerificationPage() {
     setSpSubmitting(true)
     setError(null)
     try {
+      const allDocuments = [...spVerifDocs, ...spQualDocs]
       await applyServiceProvider({
         serviceCategoryId: spCategoryId,
         serviceDeliveryType: spDeliveryType,
         locationLat: needsLocation ? spLocationLat : undefined,
         locationLng: needsLocation ? spLocationLng : undefined,
         locationDescription: needsLocation ? spLocationDesc.trim() : undefined,
-        documents: spQualDocs,
+        documents: allDocuments,
       })
+      setSpVerifDocs([])
       setSpQualDocs([])
       setSpLocationLat(undefined)
       setSpLocationLng(undefined)
@@ -465,10 +515,51 @@ export default function VerificationPage() {
                     </>
                   )}
 
-                  <div>
-                    <label className="text-sm font-medium text-foreground">Verification and qualification / expertise documents</label>
+                  {/* Section 1: Verification Documents (ID, proof of identity) */}
+                  <div className="pt-3 border-t border-border">
+                    <label className="text-sm font-medium text-foreground">Verification documents (ID, proof of identity)</label>
                     <p className="text-xs text-muted-foreground mb-2">
-                      Add at least one document (e.g. ID, certificate, license, or proof of expertise). Upload a file or paste a URL. Admin will verify these before approving your service provider account.
+                      Upload your National ID, Passport, or other government-issued ID for identity verification. Admin will verify these before approving your account.
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => setSpVerifFile(e.target.files?.[0] ?? null)}
+                        className="text-sm text-foreground file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-primary-foreground"
+                      />
+                      <input
+                        type="url"
+                        placeholder="Or paste document URL"
+                        value={spVerifUrl}
+                        onChange={(e) => setSpVerifUrl(e.target.value)}
+                        className="flex-1 min-w-[180px] h-9 rounded-md border border-border bg-background px-3 text-sm"
+                      />
+                      <Button type="button" variant="outline" size="sm" onClick={addVerificationDoc} disabled={uploading}>
+                        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add'}
+                      </Button>
+                    </div>
+                    {spVerifDocs.length > 0 && (
+                      <ul className="space-y-1 mt-2">
+                        {spVerifDocs.map((d, i) => (
+                          <li key={i} className="flex items-center justify-between text-sm">
+                            <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate max-w-[200px]">
+                              ID Document {i + 1}
+                            </a>
+                            <Button type="button" variant="ghost" size="sm" className="h-7 text-destructive" onClick={() => removeVerificationDoc(i)}>
+                              Remove
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* Section 2: Qualification/Expertise Documents */}
+                  <div className="pt-3 border-t border-border">
+                    <label className="text-sm font-medium text-foreground">Qualification / expertise documents</label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Upload certificates, licenses, degrees, portfolio samples, or other documents proving your expertise in your service area. These help customers trust your qualifications.
                     </p>
                     <div className="flex flex-wrap gap-2 mb-2">
                       <input
@@ -493,7 +584,7 @@ export default function VerificationPage() {
                         {spQualDocs.map((d, i) => (
                           <li key={i} className="flex items-center justify-between text-sm">
                             <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate max-w-[200px]">
-                              Document {i + 1}
+                              Qualification {i + 1}
                             </a>
                             <Button type="button" variant="ghost" size="sm" className="h-7 text-destructive" onClick={() => removeQualificationDoc(i)}>
                               Remove
@@ -503,7 +594,8 @@ export default function VerificationPage() {
                       </ul>
                     )}
                   </div>
-                  <Button type="submit" disabled={spSubmitting || spQualDocs.length === 0}>
+
+                  <Button type="submit" disabled={spSubmitting || spVerifDocs.length === 0 || spQualDocs.length === 0}>
                     {spSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -521,19 +613,41 @@ export default function VerificationPage() {
           {spDocuments.length > 0 && (
             <Card className="border-border">
               <CardHeader>
-                <CardTitle className="text-foreground">My qualification documents</CardTitle>
+                <CardTitle className="text-foreground">My uploaded documents</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {spDocuments.map((d) => (
-                    <li key={d.documentId} className="flex items-center justify-between gap-2 py-2 border-b border-border last:border-0">
-                      <span className="text-sm">{d.documentType}</span>
-                      <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-sm">
-                        View <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+              <CardContent className="space-y-4">
+                {/* Verification documents */}
+                {spDocuments.filter(d => d.documentType === 'verification').length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-foreground mb-2">Verification documents (ID)</p>
+                    <ul className="space-y-1">
+                      {spDocuments.filter(d => d.documentType === 'verification').map((d) => (
+                        <li key={d.documentId} className="flex items-center justify-between gap-2 py-1 border-b border-border last:border-0">
+                          <span className="text-sm text-muted-foreground">ID Document</span>
+                          <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-sm">
+                            View <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {/* Qualification documents */}
+                {spDocuments.filter(d => d.documentType !== 'verification').length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-foreground mb-2">Qualification / expertise documents</p>
+                    <ul className="space-y-1">
+                      {spDocuments.filter(d => d.documentType !== 'verification').map((d) => (
+                        <li key={d.documentId} className="flex items-center justify-between gap-2 py-1 border-b border-border last:border-0">
+                          <span className="text-sm text-muted-foreground capitalize">{d.documentType || 'Certificate'}</span>
+                          <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-sm">
+                            View <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

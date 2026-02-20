@@ -5,13 +5,13 @@ import { backendFetch } from '@/lib/server/backend'
 
 export async function listBusinesses(): Promise<BusinessDto[]> {
   const res = await backendFetch('/products/businesses')
-  if (!res.ok) throw new Error('Failed to fetch businesses')
+  if (!res.ok) return []
   return res.json()
 }
 
 export async function listProductCategories(): Promise<ProductCategoryDto[]> {
   const res = await backendFetch('/products/categories')
-  if (!res.ok) throw new Error('Failed to fetch categories')
+  if (!res.ok) return []
   return res.json()
 }
 
@@ -29,7 +29,7 @@ export async function listProducts(params?: {
   const qs = search.toString()
   const path = qs ? `/products?${qs}` : '/products'
   const res = await backendFetch(path)
-  if (!res.ok) throw new Error('Failed to fetch products')
+  if (!res.ok) return []
   return res.json()
 }
 
@@ -120,10 +120,6 @@ export async function getBusinessRating(businessId: string): Promise<number> {
 
 export async function getMySellerConfig(): Promise<SellerConfigDto | null> {
   const res = await backendFetch('/sellers/me/config')
-  if (res.status === 401 || res.status === 404) return null
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as { error?: string }).error || 'Failed to load seller config')
-  }
+  if (!res.ok) return null
   return res.json()
 }
