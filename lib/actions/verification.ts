@@ -57,6 +57,19 @@ export async function getServiceProviderDocuments(): Promise<ServiceProviderDocu
   return res.json()
 }
 
+/** Upload a service provider verification/qualification document (file upload via R2). */
+export async function uploadServiceProviderDocumentFile(formData: FormData): Promise<ServiceProviderDocumentDto> {
+  const res = await backendFetch('/verification/service-provider/documents/upload', {
+    method: 'POST',
+    body: formData,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to upload document')
+  }
+  return res.json()
+}
+
 export async function applyServiceProvider(body: {
   serviceCategoryId: string
   serviceDeliveryType: 'ONLINE' | 'PHYSICAL' | 'BOTH'

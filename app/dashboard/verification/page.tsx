@@ -26,6 +26,7 @@ import {
   uploadVerificationDocumentFile,
   getServiceProviderStatus,
   getServiceProviderDocuments,
+  uploadServiceProviderDocumentFile,
   applyServiceProvider,
 } from '@/lib/actions/verification'
 import { listServiceCategories } from '@/lib/actions/services'
@@ -183,11 +184,18 @@ export default function VerificationPage() {
         const formData = new FormData()
         formData.append('documentType', 'verification')
         formData.append('file', spVerifFile)
-        const doc = await uploadVerificationDocumentFile(formData)
+        // Use service provider upload endpoint (not product seller)
+        const doc = await uploadServiceProviderDocumentFile(formData)
         setSpVerifDocs((prev) => [...prev, { documentType: 'verification', fileUrl: doc.fileUrl }])
         setSpVerifFile(null)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Upload failed')
+        const msg = err instanceof Error ? err.message : 'Upload failed'
+        if (msg.includes('R2 disabled') || msg.includes('not configured')) {
+          setError('File upload is currently unavailable. Please paste a document URL instead (e.g. Google Drive, Dropbox, or any public link).')
+          setSpVerifFile(null)
+        } else {
+          setError(msg)
+        }
       } finally {
         setUploading(false)
       }
@@ -218,11 +226,18 @@ export default function VerificationPage() {
         const formData = new FormData()
         formData.append('documentType', 'qualification')
         formData.append('file', spQualFile)
-        const doc = await uploadVerificationDocumentFile(formData)
+        // Use service provider upload endpoint (not product seller)
+        const doc = await uploadServiceProviderDocumentFile(formData)
         setSpQualDocs((prev) => [...prev, { documentType: 'qualification', fileUrl: doc.fileUrl }])
         setSpQualFile(null)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Upload failed')
+        const msg = err instanceof Error ? err.message : 'Upload failed'
+        if (msg.includes('R2 disabled') || msg.includes('not configured')) {
+          setError('File upload is currently unavailable. Please paste a document URL instead (e.g. Google Drive, Dropbox, or any public link).')
+          setSpQualFile(null)
+        } else {
+          setError(msg)
+        }
       } finally {
         setUploading(false)
       }
@@ -547,7 +562,7 @@ export default function VerificationPage() {
                   <div className="pt-3 border-t border-border">
                     <label className="text-sm font-medium text-foreground">Verification documents (ID, proof of identity)</label>
                     <p className="text-xs text-muted-foreground mb-2">
-                      Upload your National ID, Passport, or other government-issued ID for identity verification. Admin will verify these before approving your account.
+                      Upload your National ID, Passport, or other government-issued ID for identity verification. You can upload a file directly or paste a URL.
                     </p>
                     <div className="flex flex-wrap gap-2 mb-2">
                       <input
@@ -587,7 +602,7 @@ export default function VerificationPage() {
                   <div className="pt-3 border-t border-border">
                     <label className="text-sm font-medium text-foreground">Qualification / expertise documents</label>
                     <p className="text-xs text-muted-foreground mb-2">
-                      Upload certificates, licenses, degrees, portfolio samples, or other documents proving your expertise in your service area. These help customers trust your qualifications.
+                      Upload certificates, licenses, degrees, portfolio samples, or other documents proving your expertise. You can upload a file directly or paste a URL.
                     </p>
                     <div className="flex flex-wrap gap-2 mb-2">
                       <input
