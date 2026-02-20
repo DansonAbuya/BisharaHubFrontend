@@ -84,6 +84,14 @@ export default function VerificationPage() {
 
   const isOwner = user?.role === 'owner'
 
+  // Determine what type of owner this is based on what was set up for them
+  const isSetUpForProducts = !!(status?.sellerTier || status?.applyingForTier || (status?.verificationStatus && status.verificationStatus !== 'none'))
+  const isSetUpForServices = !!(spStatus?.serviceProviderStatus)
+  
+  // If only set up for services, only show services tab. If only products, only show products tab. If both or neither, show both.
+  const showProductsTab = isSetUpForProducts || (!isSetUpForProducts && !isSetUpForServices)
+  const showServicesTab = isSetUpForServices || (!isSetUpForProducts && !isSetUpForServices)
+
   const load = async () => {
     if (!isOwner) {
       setLoading(false)
@@ -105,6 +113,17 @@ export default function VerificationPage() {
       setSpDocuments(spDocs)
       setCategories(cats)
       setSpCategoryId((prev) => (prev && cats.some((c) => c.id === prev) ? prev : cats[0]?.id ?? ''))
+      
+      // Auto-select the appropriate tab based on what the user is set up for
+      const hasProductSetup = !!(s?.sellerTier || s?.applyingForTier || (s?.verificationStatus && s.verificationStatus !== 'none'))
+      const hasServiceSetup = !!(spS?.serviceProviderStatus)
+      
+      // If only set up for services, auto-select services tab
+      if (hasServiceSetup && !hasProductSetup) {
+        setTab('services')
+      }
+      // If only set up for products, auto-select products tab (already default)
+      // If both or neither, keep default (products)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load verification status')
     } finally {
@@ -258,30 +277,37 @@ export default function VerificationPage() {
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">Verification</h1>
         <p className="text-muted-foreground">
-          Complete verification for what you want to do on the platform. You can sell products, offer services, or both — each has its own verification process. Complete one or both tabs below.
+          {showProductsTab && showServicesTab
+            ? 'Complete verification for what you want to do on the platform. You can sell products, offer services, or both — each has its own verification process.'
+            : showServicesTab
+              ? 'Complete your service provider verification to offer services on the platform.'
+              : 'Complete your business verification to sell products on the platform.'}
         </p>
       </div>
 
-      <div className="flex gap-2 border-b border-border pb-2">
-        <Button
-          variant={tab === 'products' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setTab('products')}
-          className="gap-2"
-        >
-          <Package className="size-4" />
-          Sell products
-        </Button>
-        <Button
-          variant={tab === 'services' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setTab('services')}
-          className="gap-2"
-        >
-          <Wrench className="size-4" />
-          Offer services
-        </Button>
-      </div>
+      {/* Only show tabs if user is set up for both, or if we can't determine (show both as fallback) */}
+      {(showProductsTab && showServicesTab) && (
+        <div className="flex gap-2 border-b border-border pb-2">
+          <Button
+            variant={tab === 'products' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setTab('products')}
+            className="gap-2"
+          >
+            <Package className="size-4" />
+            Sell products
+          </Button>
+          <Button
+            variant={tab === 'services' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setTab('services')}
+            className="gap-2"
+          >
+            <Wrench className="size-4" />
+            Offer services
+          </Button>
+        </div>
+      )}
 
       {error && (
         <Alert variant="destructive">
@@ -291,7 +317,7 @@ export default function VerificationPage() {
 
       {loading ? (
         <PageLoading message="Loading verification status…" minHeight="200px" />
-      ) : tab === 'services' ? (
+      ) : (tab === 'services' || (showServicesTab && !showProductsTab)) ? (
         /* ---------- Service provider verification ---------- */
         <>
           <Card className="border-border">
