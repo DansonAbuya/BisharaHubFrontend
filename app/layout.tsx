@@ -13,7 +13,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: { default: 'BiasharaHub', template: '%s | BiasharaHub' },
-  description: 'Enterprise business management and commerce platform for African SMEs. Orders, products, payments, and analytics.',
+  description: 'Platform for African SMEs: sell products, offer services, M-Pesa payments, orders, shipments, and bookings in one place. Verified businesses, WhatsApp, secure sign-in.',
   applicationName: 'BiasharaHub',
   manifest: '/manifest.json',
   icons: { icon: '/logo-favicon.png', apple: '/logo-favicon.png' },

@@ -1,0 +1,741 @@
+'use client'
+
+/**
+ * BiasharaHub Services: provider picks a service category, then offers online (virtual) or in-person (physical).
+ * Virtual = online meeting or other means; Physical = customer books appointment then attends.
+ */
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/lib/auth-context'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { PageHeader } from '@/components/layout/page-header'
+import { PageLoading } from '@/components/layout/page-loading'
+import Link from 'next/link'
+import {
+  listServices,
+  listServiceCategories,
+  canOfferServices,
+  createService,
+  updateService,
+  deleteService,
+  listAppointments,
+  createAppointment,
+  updateAppointmentStatus,
+  initiateServiceBookingPayment,
+} from '@/lib/actions/services'
+import type {
+  ServiceOfferingDto,
+  ServiceCategoryDto,
+  ServiceAppointmentDto,
+} from '@/lib/api'
+import { Wrench, Plus, Edit2, Trash2, Loader2, Monitor, MapPin, Calendar, ShieldCheck, Smartphone } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { formatPrice } from '@/lib/utils'
+
+const DELIVERY_OPTIONS = [
+  { value: 'VIRTUAL', label: 'Online / Virtual (e.g. online meeting)' },
+  { value: 'PHYSICAL', label: 'In-person / Physical (customer books appointment then attends)' },
+] as const
+
+export default function ServicesPage() {
+  const { user } = useAuth()
+  const [services, setServices] = useState<ServiceOfferingDto[]>([])
+  const [categories, setCategories] = useState<ServiceCategoryDto[]>([])
+  const [appointments, setAppointments] = useState<ServiceAppointmentDto[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [filterCategoryId, setFilterCategoryId] = useState<string>('')
+  const [filterDeliveryType, setFilterDeliveryType] = useState<string>('')
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingService, setEditingService] = useState<ServiceOfferingDto | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [formSubmitting, setFormSubmitting] = useState(false)
+
+  const [formName, setFormName] = useState('')
+  const [formCategoryId, setFormCategoryId] = useState('')
+  const [formDescription, setFormDescription] = useState('')
+  const [formPrice, setFormPrice] = useState('')
+  const [formDeliveryType, setFormDeliveryType] = useState<'VIRTUAL' | 'PHYSICAL'>('PHYSICAL')
+  const [formDurationMinutes, setFormDurationMinutes] = useState('')
+  const [formIsActive, setFormIsActive] = useState(true)
+
+  const [bookService, setBookService] = useState<ServiceOfferingDto | null>(null)
+  const [bookDate, setBookDate] = useState('')
+  const [bookTime, setBookTime] = useState('')
+  const [bookNotes, setBookNotes] = useState('')
+  const [bookSubmitting, setBookSubmitting] = useState(false)
+
+  const [updatingAppointmentId, setUpdatingAppointmentId] = useState<string | null>(null)
+  const [canOffer, setCanOffer] = useState<boolean | null>(null)
+
+  const [payAppointment, setPayAppointment] = useState<ServiceAppointmentDto | null>(null)
+  const [payPhone, setPayPhone] = useState('')
+  const [paySubmitting, setPaySubmitting] = useState(false)
+  const [payInitiated, setPayInitiated] = useState(false)
+
+  const canManage = user?.role === 'owner' || user?.role === 'staff'
+
+  const loadCanOffer = async () => {
+    if (!canManage) return
+    try {
+      const result = await canOfferServices()
+      setCanOffer(result.canOffer)
+    } catch {
+      setCanOffer(false)
+    }
+  }
+
+  const loadServices = async () => {
+    try {
+      setError(null)
+      const params: { categoryId?: string; deliveryType?: 'VIRTUAL' | 'PHYSICAL' } = {}
+      if (filterCategoryId) params.categoryId = filterCategoryId
+      if (filterDeliveryType === 'VIRTUAL' || filterDeliveryType === 'PHYSICAL') params.deliveryType = filterDeliveryType
+      const data = await listServices(params)
+      setServices(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load services')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadCategories = async () => {
+    try {
+      const data = await listServiceCategories()
+      setCategories(data)
+    } catch {
+      setCategories([])
+    }
+  }
+
+  const loadAppointments = async () => {
+    if (!user) return
+    try {
+      const data = await listAppointments()
+      setAppointments(data)
+    } catch {
+      setAppointments([])
+    }
+  }
+
+  useEffect(() => {
+    loadServices()
+  }, [filterCategoryId, filterDeliveryType])
+
+  useEffect(() => {
+    loadCategories()
+  }, [])
+
+  useEffect(() => {
+    loadCanOffer()
+  }, [canManage])
+
+  useEffect(() => {
+    if (user) loadAppointments()
+  }, [user])
+
+  const resetForm = () => {
+    setFormName('')
+    setFormCategoryId('')
+    setFormDescription('')
+    setFormPrice('')
+    setFormDeliveryType('PHYSICAL')
+    setFormDurationMinutes('')
+    setFormIsActive(true)
+    setEditingService(null)
+  }
+
+  const openAdd = () => {
+    resetForm()
+    if (categories.length > 0) setFormCategoryId(categories[0].id)
+    setIsDialogOpen(true)
+  }
+
+  const openEdit = (s: ServiceOfferingDto) => {
+    setEditingService(s)
+    setFormName(s.name)
+    setFormCategoryId(s.categoryId ?? (categories[0]?.id ?? ''))
+    setFormDescription(s.description ?? '')
+    setFormPrice(String(s.price))
+    setFormDeliveryType(s.deliveryType)
+    setFormDurationMinutes(s.durationMinutes != null ? String(s.durationMinutes) : '')
+    setFormIsActive(s.isActive)
+    setIsDialogOpen(true)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const price = parseFloat(formPrice)
+    if (!formName.trim() || isNaN(price) || price < 0 || !formCategoryId) return
+    setFormSubmitting(true)
+    try {
+      if (editingService) {
+        const updated = await updateService(editingService.id, {
+          name: formName.trim(),
+          categoryId: formCategoryId,
+          description: formDescription.trim() || undefined,
+          price,
+          deliveryType: formDeliveryType,
+          durationMinutes: formDurationMinutes ? parseInt(formDurationMinutes, 10) : undefined,
+          isActive: formIsActive,
+        })
+        setServices((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+      } else {
+        const created = await createService({
+          name: formName.trim(),
+          categoryId: formCategoryId,
+          description: formDescription.trim() || undefined,
+          price,
+          deliveryType: formDeliveryType,
+          durationMinutes: formDurationMinutes ? parseInt(formDurationMinutes, 10) : undefined,
+          isActive: formIsActive,
+        })
+        setServices((prev) => [created, ...prev])
+      }
+      setIsDialogOpen(false)
+      resetForm()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save')
+    } finally {
+      setFormSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id)
+    try {
+      await deleteService(id)
+      setServices((prev) => prev.filter((s) => s.id !== id))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const openBookAppointment = (s: ServiceOfferingDto) => {
+    setBookService(s)
+    setBookDate('')
+    setBookTime('')
+    setBookNotes('')
+  }
+
+  const handleBookAppointment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!bookService || !bookDate) return
+    setBookSubmitting(true)
+    try {
+      const created = await createAppointment(bookService.id, {
+        requestedDate: bookDate,
+        requestedTime: bookTime || undefined,
+        notes: bookNotes || undefined,
+      })
+      setAppointments((prev) => [created, ...prev])
+      setBookService(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to book appointment')
+    } finally {
+      setBookSubmitting(false)
+    }
+  }
+
+  const handleUpdateAppointmentStatus = async (id: string, status: 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW') => {
+    setUpdatingAppointmentId(id)
+    try {
+      const updated = await updateAppointmentStatus(id, status)
+      setAppointments((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update')
+    } finally {
+      setUpdatingAppointmentId(null)
+    }
+  }
+
+  const openPayDialog = (a: ServiceAppointmentDto) => {
+    setPayAppointment(a)
+    setPayPhone('')
+    setPayInitiated(false)
+  }
+
+  const handleInitiatePayment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!payAppointment || !payPhone.trim()) return
+    setPaySubmitting(true)
+    try {
+      await initiateServiceBookingPayment(payAppointment.id, payPhone.trim())
+      setPayInitiated(true)
+      setTimeout(() => {
+        setPayAppointment(null)
+        loadAppointments()
+      }, 4000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to initiate payment')
+    } finally {
+      setPaySubmitting(false)
+    }
+  }
+
+  if (loading) return <PageLoading />
+
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        title="BiasharaHub Services"
+        description="Pick a service category and offer it online (virtual) or in-person (physical). Physical services: customers book an appointment then attend."
+        actions={
+          canManage && canOffer === true ? (
+            <Button onClick={openAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add service
+            </Button>
+          ) : null
+        }
+      />
+
+      {/* Service provider onboarding: same verification as sellers */}
+      {canManage && canOffer === false && (
+        <Alert className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
+          <ShieldCheck className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-medium">Only verified service providers can offer services.</span>
+            <span className="block mt-1 text-sm">
+              Complete business verification (same process as for sellers) to list your services. Submit your documents in Verification and wait for admin approval.
+            </span>
+            <Button asChild variant="outline" size="sm" className="mt-3">
+              <Link href="/dashboard/verification">Go to Verification</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <Select value={filterCategoryId || 'all'} onValueChange={(v) => setFilterCategoryId(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterDeliveryType || 'all'} onValueChange={(v) => setFilterDeliveryType(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-[220px]">
+            <SelectValue placeholder="Delivery type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            {DELIVERY_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {error && (
+        <div className="rounded-md bg-destructive/10 text-destructive px-3 py-2 text-sm">{error}</div>
+      )}
+
+      {services.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground text-center py-8">
+              {canManage
+                ? 'No services yet. Add a service: choose a category, then offer it online or in-person.'
+                : 'No services available to browse right now.'}
+            </p>
+            {canManage && canOffer === true && (
+              <div className="flex justify-center">
+                <Button onClick={openAdd}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add service
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {services.map((s) => (
+            <Card key={s.id} className={s.isActive ? '' : 'opacity-75'}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {s.deliveryType === 'VIRTUAL' ? (
+                      <Monitor className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                      <MapPin className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <CardTitle className="text-lg">{s.name}</CardTitle>
+                  </div>
+                  {canManage && (
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(s.id)}
+                        disabled={deletingId === s.id}
+                      >
+                        {deletingId === s.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <CardDescription>
+                  {s.category && <Badge variant="secondary" className="mr-1">{s.category}</Badge>}
+                  <Badge variant="outline">{s.deliveryType === 'VIRTUAL' ? 'Online' : 'In-person'}</Badge>
+                  {!s.isActive && (
+                    <Badge variant="destructive" className="ml-1">Inactive</Badge>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {s.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{s.description}</p>
+                )}
+                <p className="font-semibold">{formatPrice(s.price)}</p>
+                {s.durationMinutes != null && s.durationMinutes > 0 && (
+                  <p className="text-xs text-muted-foreground">Duration: {s.durationMinutes} min</p>
+                )}
+                {!canManage && s.deliveryType === 'PHYSICAL' && s.isActive && (
+                  <Button size="sm" variant="outline" className="w-full mt-2" onClick={() => openBookAppointment(s)}>
+                    <Calendar className="mr-2 h-4 w-4" />
+                    Book appointment
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Appointments section */}
+      {user && appointments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              {canManage ? 'Appointments (for your services)' : 'My appointments'}
+            </CardTitle>
+            <CardDescription>
+              {canManage
+                ? 'Confirm, complete, or cancel bookings.'
+                : 'Your booked physical service appointments.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-3">
+              {appointments.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
+                >
+                  <div>
+                    <p className="font-medium">{a.serviceName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {a.requestedDate}
+                      {a.requestedTime ? ` at ${a.requestedTime}` : ''}
+                      {canManage && ` · ${a.userName}`}
+                    </p>
+                    {(a.amount != null && a.amount > 0) && (
+                      <p className="text-sm font-medium mt-0.5">{formatPrice(a.amount)}</p>
+                    )}
+                    {a.notes && (
+                      <p className="text-xs text-muted-foreground mt-1">{a.notes}</p>
+                    )}
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      <Badge variant={a.status === 'COMPLETED' ? 'default' : a.status === 'CANCELLED' ? 'destructive' : 'secondary'}>
+                        {a.status}
+                      </Badge>
+                      {a.paymentStatus === 'completed' && (
+                        <Badge variant="outline" className="text-green-600 border-green-600">Paid</Badge>
+                      )}
+                    </div>
+                  </div>
+                  {!canManage && a.paymentStatus !== 'completed' && a.amount != null && a.amount > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openPayDialog(a)}
+                    >
+                      <Smartphone className="mr-2 h-4 w-4" />
+                      Pay with M-Pesa
+                    </Button>
+                  )}
+                  {a.status === 'PENDING' && (
+                    <div className="flex gap-1">
+                      {canManage && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={updatingAppointmentId === a.id}
+                            onClick={() => handleUpdateAppointmentStatus(a.id, 'CONFIRMED')}
+                          >
+                            {updatingAppointmentId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={updatingAppointmentId === a.id}
+                            onClick={() => handleUpdateAppointmentStatus(a.id, 'COMPLETED')}
+                          >
+                            Complete
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive"
+                        disabled={updatingAppointmentId === a.id}
+                        onClick={() => handleUpdateAppointmentStatus(a.id, 'CANCELLED')}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                  {a.status === 'CONFIRMED' && canManage && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={updatingAppointmentId === a.id}
+                      onClick={() => handleUpdateAppointmentStatus(a.id, 'COMPLETED')}
+                    >
+                      {updatingAppointmentId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Mark complete'}
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Add/Edit service dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) { setIsDialogOpen(false); resetForm(); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingService ? 'Edit service' : 'Add service'}</DialogTitle>
+            <DialogDescription>
+              Choose a service category, then whether to provide it online (virtual) or in-person (physical). Physical: customers book an appointment then attend.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label>Service category *</Label>
+              <Select value={formCategoryId} onValueChange={setFormCategoryId} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="name">Service name *</Label>
+              <Input
+                id="name"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="e.g. 1-on-1 Consultation, Equipment Repair"
+                required
+              />
+            </div>
+            <div>
+              <Label>Delivery type *</Label>
+              <Select value={formDeliveryType} onValueChange={(v) => setFormDeliveryType(v as 'VIRTUAL' | 'PHYSICAL')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DELIVERY_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
+                placeholder="Short description"
+              />
+            </div>
+            <div>
+              <Label htmlFor="price">Price (KES) *</Label>
+              <Input
+                id="price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formPrice}
+                onChange={(e) => setFormPrice(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="duration">Duration (minutes, optional)</Label>
+              <Input
+                id="duration"
+                type="number"
+                min="0"
+                value={formDurationMinutes}
+                onChange={(e) => setFormDurationMinutes(e.target.value)}
+                placeholder="e.g. 60"
+              />
+            </div>
+            {editingService && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={formIsActive}
+                  onChange={(e) => setFormIsActive(e.target.checked)}
+                />
+                <Label htmlFor="isActive">Active (visible to customers)</Label>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={formSubmitting || !formName.trim() || !formCategoryId}>
+                {formSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingService ? 'Update' : 'Create'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pay for booking (M-Pesa) dialog */}
+      <Dialog open={!!payAppointment} onOpenChange={(open) => { if (!open) { setPayAppointment(null); setPayInitiated(false); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pay for booking</DialogTitle>
+            <DialogDescription>
+              {payAppointment?.serviceName} — {payAppointment != null && payAppointment.amount != null && formatPrice(payAppointment.amount)}. Enter your M-Pesa phone number to receive the STK push.
+            </DialogDescription>
+          </DialogHeader>
+          {payInitiated ? (
+            <p className="text-sm text-muted-foreground py-2">Complete the payment on your phone. This dialog will close shortly and the list will refresh.</p>
+          ) : (
+            <form onSubmit={handleInitiatePayment} className="space-y-4">
+              <div>
+                <Label htmlFor="payPhone">M-Pesa phone number *</Label>
+                <Input
+                  id="payPhone"
+                  value={payPhone}
+                  onChange={(e) => setPayPhone(e.target.value)}
+                  placeholder="e.g. 254712345678"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => { setPayAppointment(null); setPayInitiated(false); }}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={paySubmitting || !payPhone.trim()}>
+                  {paySubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Send M-Pesa prompt
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Book appointment dialog */}
+      <Dialog open={!!bookService} onOpenChange={(open) => { if (!open) setBookService(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Book appointment</DialogTitle>
+            <DialogDescription>
+              {bookService?.name} — choose date and time, then attend in person.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleBookAppointment} className="space-y-4">
+            <div>
+              <Label htmlFor="bookDate">Date *</Label>
+              <Input
+                id="bookDate"
+                type="date"
+                value={bookDate}
+                onChange={(e) => setBookDate(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="bookTime">Time (optional)</Label>
+              <Input
+                id="bookTime"
+                type="time"
+                value={bookTime}
+                onChange={(e) => setBookTime(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="bookNotes">Notes</Label>
+              <Input
+                id="bookNotes"
+                value={bookNotes}
+                onChange={(e) => setBookNotes(e.target.value)}
+                placeholder="Any special requests"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setBookService(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={bookSubmitting || !bookDate}>
+                {bookSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Book
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

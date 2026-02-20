@@ -16,6 +16,8 @@ export interface AuthUser {
   role: UserRole
   businessId?: string
   businessName?: string
+  /** Owner verification: pending, verified, rejected. Required to sell products and offer services. */
+  verificationStatus?: string | null
 }
 
 /** When login or register requires 2FA, we show code step and complete via verifyCode */
@@ -100,6 +102,7 @@ function toAuthUser(u: api.AuthUser): AuthUser {
     role: u.role as UserRole,
     businessId: u.businessId,
     businessName: u.businessName,
+    verificationStatus: u.verificationStatus ?? null,
   }
 }
 

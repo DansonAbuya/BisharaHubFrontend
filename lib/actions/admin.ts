@@ -3,11 +3,13 @@
 import type {
   AuthUser,
   AddOwnerRequest,
+  AddServiceProviderRequest,
   AddStaffRequest,
   AddCourierRequest,
   AddAssistantAdminRequest,
   OwnerVerificationDto,
   OwnerVerificationDocumentDto,
+  ServiceProviderDocumentDto,
   SellerConfigDto,
   CourierServiceDto,
   DisputeDto,
@@ -25,6 +27,21 @@ export async function addOwner(data: AddOwnerRequest): Promise<AuthUser> {
     if (res.status === 401) throw new Error(msg || 'Session expired. Please sign in again.')
     if (res.status === 403) throw new Error(msg || 'You do not have permission to onboard businesses. Only platform administrators can do this.')
     throw new Error(msg || 'Failed to add owner')
+  }
+  return res.json()
+}
+
+export async function addServiceProvider(data: AddServiceProviderRequest): Promise<AuthUser> {
+  const res = await backendFetch('/admin/service-providers', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    const msg = (err as { message?: string }).message || (err as { error?: string }).error
+    if (res.status === 401) throw new Error(msg || 'Session expired. Please sign in again.')
+    if (res.status === 403) throw new Error(msg || 'You do not have permission to onboard service providers.')
+    throw new Error(msg || 'Failed to onboard service provider')
   }
   return res.json()
 }
@@ -100,6 +117,35 @@ export async function setOwnerVerification(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error((err as { error?: string }).error || 'Failed to update verification')
+  }
+  return res.json()
+}
+
+export async function listPendingServiceProviders(): Promise<OwnerVerificationDto[]> {
+  const res = await backendFetch('/verification/admin/pending-service-providers')
+  if (!res.ok) throw new Error('Failed to fetch pending service providers')
+  return res.json()
+}
+
+export async function getServiceProviderDocumentsForOwner(
+  ownerId: string
+): Promise<ServiceProviderDocumentDto[]> {
+  const res = await backendFetch(`/verification/admin/service-providers/${ownerId}/documents`)
+  if (!res.ok) throw new Error('Failed to fetch documents')
+  return res.json()
+}
+
+export async function setServiceProviderVerification(
+  ownerId: string,
+  body: { status: 'verified' | 'rejected'; notes?: string }
+): Promise<OwnerVerificationDto> {
+  const res = await backendFetch(`/verification/admin/service-providers/${ownerId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update')
   }
   return res.json()
 }
