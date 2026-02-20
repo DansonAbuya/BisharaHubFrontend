@@ -33,38 +33,54 @@ export function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname()
 
   // Determine if user is set up for products, services, or both
+  const isOwner = user?.role === 'owner'
   const isProductSeller = !!(user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none'))
   const isServiceProvider = !!(user?.serviceProviderStatus)
-  // If neither is set, show both (fallback for new users)
-  const showProducts = isProductSeller || (!isProductSeller && !isServiceProvider)
-  const showServices = isServiceProvider || (!isProductSeller && !isServiceProvider)
+  const isVerifiedProductSeller = user?.verificationStatus === 'verified'
+  const isVerifiedServiceProvider = user?.serviceProviderStatus === 'verified'
+  
+  // User is unverified if they are an owner but not verified
+  const isUnverifiedOwner = isOwner && (
+    (isServiceProvider && !isVerifiedServiceProvider && !isProductSeller) ||
+    (isProductSeller && !isVerifiedProductSeller && !isServiceProvider) ||
+    (isServiceProvider && isProductSeller && !isVerifiedServiceProvider && !isVerifiedProductSeller) ||
+    (!isServiceProvider && !isProductSeller)
+  )
 
-  // Build owner menu dynamically based on what they're set up for
-  const ownerMenu = [
-    { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
-    ...(showProducts ? [
-      { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
-      { label: 'Products', icon: Package, href: '/dashboard/products' },
-    ] : []),
-    ...(showServices ? [
-      { label: 'Services', icon: Wrench, href: '/dashboard/services' },
-    ] : []),
-    ...(showProducts ? [
-      { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
-    ] : []),
-    { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
-    { label: 'Expenses', icon: Receipt, href: '/dashboard/expenses' },
-    { label: 'Accounting', icon: Wallet, href: '/dashboard/accounting' },
-    { label: 'Reconciliation', icon: Banknote, href: '/dashboard/reconciliation' },
-    { label: 'Staff', icon: Users, href: '/dashboard/staff' },
-    ...(showProducts ? [
-      { label: 'Couriers', icon: Truck, href: '/dashboard/couriers' },
-    ] : []),
-    { label: 'Verification', icon: FileCheck, href: '/dashboard/verification' },
-    { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
-    { label: 'Wishlist (customer)', icon: Package, href: '/dashboard/wishlist' },
-    { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
-  ]
+  // Show products/services based on what's set up (only for verified owners)
+  const showProducts = !isUnverifiedOwner && (isProductSeller || (!isProductSeller && !isServiceProvider))
+  const showServices = !isUnverifiedOwner && (isServiceProvider || (!isProductSeller && !isServiceProvider))
+
+  // Build owner menu dynamically - unverified owners only see verification
+  const ownerMenu = isUnverifiedOwner
+    ? [
+        { label: 'Verification', icon: FileCheck, href: '/dashboard/verification' },
+      ]
+    : [
+        { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
+        ...(showProducts ? [
+          { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
+          { label: 'Products', icon: Package, href: '/dashboard/products' },
+        ] : []),
+        ...(showServices ? [
+          { label: 'Services', icon: Wrench, href: '/dashboard/services' },
+        ] : []),
+        ...(showProducts ? [
+          { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
+        ] : []),
+        { label: 'Analytics', icon: BarChart3, href: '/dashboard/analytics' },
+        { label: 'Expenses', icon: Receipt, href: '/dashboard/expenses' },
+        { label: 'Accounting', icon: Wallet, href: '/dashboard/accounting' },
+        { label: 'Reconciliation', icon: Banknote, href: '/dashboard/reconciliation' },
+        { label: 'Staff', icon: Users, href: '/dashboard/staff' },
+        ...(showProducts ? [
+          { label: 'Couriers', icon: Truck, href: '/dashboard/couriers' },
+        ] : []),
+        { label: 'Verification', icon: FileCheck, href: '/dashboard/verification' },
+        { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
+        { label: 'Wishlist (customer)', icon: Package, href: '/dashboard/wishlist' },
+        { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
+      ]
 
   const menuItems = {
     courier: [

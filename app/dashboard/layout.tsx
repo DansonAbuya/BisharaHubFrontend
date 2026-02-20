@@ -85,8 +85,26 @@ function DashboardLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const { user, isInitialized } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Check if user is an unverified owner (service provider or product seller)
+  const isOwner = user?.role === 'owner'
+  const isProductSeller = !!(user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none'))
+  const isServiceProvider = !!(user?.serviceProviderStatus)
+  const isVerifiedProductSeller = user?.verificationStatus === 'verified'
+  const isVerifiedServiceProvider = user?.serviceProviderStatus === 'verified'
+  
+  // User is unverified if they are an owner but not verified for either products or services
+  const isUnverifiedOwner = isOwner && (
+    (isServiceProvider && !isVerifiedServiceProvider && !isProductSeller) ||
+    (isProductSeller && !isVerifiedProductSeller && !isServiceProvider) ||
+    (isServiceProvider && isProductSeller && !isVerifiedServiceProvider && !isVerifiedProductSeller) ||
+    (!isServiceProvider && !isProductSeller) // New owner with nothing set up yet
+  )
+
+  const isOnVerificationPage = pathname === '/dashboard/verification'
 
   useEffect(() => {
     if (isInitialized && !user) {
@@ -94,7 +112,36 @@ function DashboardLayout({
     }
   }, [user, isInitialized, router])
 
+  // Redirect unverified owners to verification page (except if already there)
+  useEffect(() => {
+    if (isInitialized && user && isUnverifiedOwner && !isOnVerificationPage) {
+      router.push('/dashboard/verification')
+    }
+  }, [isInitialized, user, isUnverifiedOwner, isOnVerificationPage, router])
+
   if (!isInitialized || !user) {
+    return (
+      <div className="flex-1 min-h-0 flex items-center justify-center bg-background">
+        <Spinner className="w-8 h-8 text-primary" />
+      </div>
+    )
+  }
+
+  // For unverified owners, show a minimal layout with just the verification page
+  if (isUnverifiedOwner && isOnVerificationPage) {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col bg-background overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollable-touch">
+          <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+            {children}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // If unverified and not on verification page, show loading while redirecting
+  if (isUnverifiedOwner) {
     return (
       <div className="flex-1 min-h-0 flex items-center justify-center bg-background">
         <Spinner className="w-8 h-8 text-primary" />

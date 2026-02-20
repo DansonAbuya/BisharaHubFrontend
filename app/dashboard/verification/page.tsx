@@ -89,9 +89,17 @@ export default function VerificationPage() {
 
   const isOwner = user?.role === 'owner'
 
-  // Determine what type of owner this is based on what was set up for them
-  const isSetUpForProducts = !!(status?.sellerTier || status?.applyingForTier || (status?.verificationStatus && status.verificationStatus !== 'none'))
-  const isSetUpForServices = !!(spStatus?.serviceProviderStatus)
+  // Determine what type of owner this is based on BOTH user context AND fetched status
+  // User context has serviceProviderStatus, sellerTier, etc. from /me endpoint
+  // Status objects come from verification endpoints
+  const isSetUpForProducts = !!(
+    user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none') ||
+    status?.sellerTier || status?.applyingForTier || (status?.verificationStatus && status.verificationStatus !== 'none')
+  )
+  const isSetUpForServices = !!(
+    user?.serviceProviderStatus ||
+    spStatus?.serviceProviderStatus
+  )
   
   // If only set up for services, only show services tab. If only products, only show products tab. If both or neither, show both.
   const showProductsTab = isSetUpForProducts || (!isSetUpForProducts && !isSetUpForServices)
@@ -120,8 +128,12 @@ export default function VerificationPage() {
       setSpCategoryId((prev) => (prev && cats.some((c) => c.id === prev) ? prev : cats[0]?.id ?? ''))
       
       // Auto-select the appropriate tab based on what the user is set up for
-      const hasProductSetup = !!(s?.sellerTier || s?.applyingForTier || (s?.verificationStatus && s.verificationStatus !== 'none'))
-      const hasServiceSetup = !!(spS?.serviceProviderStatus)
+      // Check BOTH user context and fetched status
+      const hasProductSetup = !!(
+        user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none') ||
+        s?.sellerTier || s?.applyingForTier || (s?.verificationStatus && s.verificationStatus !== 'none')
+      )
+      const hasServiceSetup = !!(user?.serviceProviderStatus || spS?.serviceProviderStatus)
       
       // If only set up for services, auto-select services tab
       if (hasServiceSetup && !hasProductSetup) {
@@ -139,6 +151,15 @@ export default function VerificationPage() {
   useEffect(() => {
     load()
   }, [isOwner])
+
+  // Immediately set tab based on user context (before data loads)
+  useEffect(() => {
+    const hasProductSetup = !!(user?.sellerTier || user?.applyingForTier || (user?.verificationStatus && user.verificationStatus !== 'none'))
+    const hasServiceSetup = !!(user?.serviceProviderStatus)
+    if (hasServiceSetup && !hasProductSetup) {
+      setTab('services')
+    }
+  }, [user])
 
   const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB
 
