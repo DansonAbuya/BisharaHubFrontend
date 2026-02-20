@@ -25,8 +25,16 @@ export interface AuthUser {
   businessId?: string
   businessName?: string
   phone?: string
-  /** Owner verification status: pending, verified, rejected. Used for seller and service provider onboarding. */
+  /** Product seller verification status: pending, verified, rejected. */
   verificationStatus?: string | null
+  /** Product seller tier: tier1, tier2, tier3. */
+  sellerTier?: string | null
+  /** Tier the seller is applying for. */
+  applyingForTier?: string | null
+  /** Service provider verification status: pending, verified, rejected. */
+  serviceProviderStatus?: string | null
+  /** Service delivery type: ONLINE, PHYSICAL, BOTH. */
+  serviceDeliveryType?: string | null
 }
 
 export interface LoginResponse {

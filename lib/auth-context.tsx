@@ -111,6 +111,10 @@ function toAuthUser(u: api.AuthUser): AuthUser {
     businessId: u.businessId,
     businessName: u.businessName,
     verificationStatus: u.verificationStatus ?? null,
+    sellerTier: u.sellerTier ?? null,
+    applyingForTier: u.applyingForTier ?? null,
+    serviceProviderStatus: u.serviceProviderStatus ?? null,
+    serviceDeliveryType: u.serviceDeliveryType ?? null,
   }
 }
 
