@@ -15,11 +15,15 @@ import { Button } from '@/components/ui/button'
 import { BookOpen, ExternalLink } from 'lucide-react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api'
+const DEFAULT_TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID || 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
 
 function getAuthHeaders(): Record<string, string> {
   if (typeof window === 'undefined') return {}
   const token = sessionStorage.getItem('biashara_token')
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Tenant-ID': DEFAULT_TENANT_ID,
+  }
   if (token) headers['Authorization'] = `Bearer ${token}`
   return headers
 }
@@ -43,25 +47,33 @@ export default function AdminApiDocsPage() {
     let cancelled = false
     async function load() {
       try {
-        const res = await fetch(`${API_BASE}/admin/api-docs-info`, { headers: getAuthHeaders() })
-        if (!res.ok) {
-          setError(res.status === 403 ? 'Only admins can view API documentation.' : 'Failed to load API docs info.')
-          setLoading(false)
-          return
-        }
-        const data = await res.json()
-        const specUrl = data.openApiSpecUrl as string
-        setSwaggerUiUrl(data.swaggerUiUrl as string)
-        const specRes = await fetch(specUrl, { headers: getAuthHeaders() })
+        // Use the same API base as the rest of the app (NEXT_PUBLIC_API_URL) so the spec loads in all environments
+        const specUrl = `${API_BASE}/v3/api-docs`
+        const linkUrl = `${API_BASE}/swagger-ui.html`
+        setSwaggerUiUrl(linkUrl)
+        const specRes = await fetch(specUrl, {
+          headers: getAuthHeaders(),
+          credentials: 'include',
+        })
         if (!specRes.ok) {
-          setError('Failed to load OpenAPI spec.')
+          const status = specRes.status
+          const text = await specRes.text()
+          if (status === 401) {
+            setError('Session expired. Please sign in again.')
+          } else if (status === 403) {
+            setError('Only admins can view API documentation.')
+          } else {
+            setError(`Failed to load OpenAPI spec (${status}). ${text ? text.slice(0, 80) : ''}`)
+          }
           setLoading(false)
           return
         }
         const specData = await specRes.json()
         if (!cancelled) setSpec(specData)
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load API documentation.')
+        const message = e instanceof Error ? e.message : 'Failed to load API documentation.'
+        const cause = e instanceof Error && e.cause instanceof Error ? e.cause.message : ''
+        if (!cancelled) setError(cause ? `${message}: ${cause}` : message)
       } finally {
         if (!cancelled) setLoading(false)
       }
