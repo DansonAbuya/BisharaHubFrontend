@@ -24,6 +24,7 @@ import {
   Calendar,
   CalendarCheck,
   Clock,
+  BookOpen,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -135,6 +136,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Assistant Admins', icon: Users, href: '/dashboard/admin/assistant-admins' },
       { label: 'Seller Pricing & Branding', icon: Settings, href: '/dashboard/admin/seller-config' },
       { label: 'Courier Services', icon: Truck, href: '/dashboard/admin/courier-services' },
+      { label: 'API Documentation', icon: BookOpen, href: '/dashboard/admin/api-docs' },
       { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
       { label: 'Wishlist', icon: Package, href: '/dashboard/wishlist' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' },
@@ -149,6 +151,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Verify Service Providers', icon: Wrench, href: '/dashboard/admin/pending-service-providers' },
       { label: 'Disputes', icon: FileCheck, href: '/dashboard/admin/disputes' },
       { label: 'Courier Services', icon: Truck, href: '/dashboard/admin/courier-services' },
+      { label: 'API Documentation', icon: BookOpen, href: '/dashboard/admin/api-docs' },
       { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
     ],
   }
