@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import { listSellerConfigs, setSellerPricingPlan, setSellerBranding } from '@/lib/actions/admin'
+import { listSellerConfigs, setSellerPricingPlan, setSellerBranding, setOwnerAccountStatus } from '@/lib/actions/admin'
 import type { SellerConfigDto } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { PageLoading } from '@/components/layout/page-loading'
-import { Paintbrush, Tag } from 'lucide-react'
+import { Paintbrush, Tag, UserX, UserCheck } from 'lucide-react'
 
 export default function AdminSellerConfigPage() {
   const { user } = useAuth()
@@ -19,18 +19,26 @@ export default function AdminSellerConfigPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [statusChangingId, setStatusChangingId] = useState<string | null>(null)
 
   const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'assistant_admin'
+
+  const loadSellers = () => {
+    if (!isPlatformAdmin) return
+    setLoading(true)
+    setError('')
+    listSellerConfigs()
+      .then(setSellers)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sellers'))
+      .finally(() => setLoading(false))
+  }
 
   useEffect(() => {
     if (!isPlatformAdmin) {
       setLoading(false)
       return
     }
-    listSellerConfigs()
-      .then(setSellers)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sellers'))
-      .finally(() => setLoading(false))
+    loadSellers()
   }, [isPlatformAdmin])
 
   if (!isPlatformAdmin) {
@@ -106,6 +114,22 @@ export default function AdminSellerConfigPage() {
     }
   }
 
+  const isActive = (s: SellerConfigDto) =>
+    s.accountStatus == null || s.accountStatus.toLowerCase() === 'active'
+
+  const handleAccountStatusToggle = async (seller: SellerConfigDto) => {
+    setStatusChangingId(seller.userId)
+    setError('')
+    try {
+      await setOwnerAccountStatus(seller.userId, isActive(seller) ? 'disabled' : 'active')
+      loadSellers()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update account status')
+    } finally {
+      setStatusChangingId(null)
+    }
+  }
+
   return (
     <div className="space-y-6 sm:space-y-8">
       <div className="flex justify-between items-start">
@@ -172,9 +196,44 @@ export default function AdminSellerConfigPage() {
                             {seller.verificationStatus}
                           </Badge>
                         )}
+                        <Badge
+                          variant="outline"
+                          className={
+                            isActive(seller)
+                              ? 'border-emerald-500 text-emerald-600'
+                              : 'border-destructive/80 text-destructive'
+                          }
+                        >
+                          {isActive(seller) ? 'Active' : 'Disabled'}
+                        </Badge>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">
+                      <Button
+                        size="sm"
+                        variant={isActive(seller) ? 'outline' : 'default'}
+                        className="text-xs"
+                        disabled={statusChangingId === seller.userId}
+                        onClick={() => handleAccountStatusToggle(seller)}
+                        title={isActive(seller) ? 'Disable account (login blocked, hidden from customers)' : 'Enable account'}
+                      >
+                        {statusChangingId === seller.userId ? (
+                          <span className="flex items-center gap-1">
+                            <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full" />
+                            Updating…
+                          </span>
+                        ) : isActive(seller) ? (
+                          <>
+                            <UserX className="w-3 h-3 mr-1" />
+                            Disable account
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="w-3 h-3 mr-1" />
+                            Enable account
+                          </>
+                        )}
+                      </Button>
                       <Link href={`/dashboard/admin/seller-config/${seller.userId}`}>
                         <Button size="sm" variant="outline" className="text-xs">
                           Configure setup
