@@ -519,6 +519,8 @@ export interface SellerConfigDto {
   businessName?: string | null
   sellerTier?: string | null
   verificationStatus?: string | null
+  /** Account status: active, disabled. Admin can disable/enable owner accounts. */
+  accountStatus?: string | null
   pricingPlan?: string | null
   /** Growth plan feature flags (only when pricingPlan is "growth"). */
   growthInventoryAutomation?: boolean | null

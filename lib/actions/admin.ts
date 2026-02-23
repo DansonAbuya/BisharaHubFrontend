@@ -221,6 +221,21 @@ export async function setSellerBranding(
   return res.json()
 }
 
+/** Admin: set owner account status (active | disabled). Disabled owners cannot log in and are hidden from customers. */
+export async function setOwnerAccountStatus(
+  userId: string,
+  status: 'active' | 'disabled'
+): Promise<void> {
+  const res = await backendFetch(`/admin/users/${userId}/account-status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update account status')
+  }
+}
+
 export async function listAdminCourierServices(): Promise<CourierServiceDto[]> {
   const res = await backendFetch('/admin/courier-services')
   if (!res.ok) throw new Error('Failed to fetch courier services')
