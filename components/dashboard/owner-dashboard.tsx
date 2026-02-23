@@ -85,7 +85,8 @@ export function OwnerDashboard() {
     (!isServiceProvider && !isProductSeller)
   )
   const showProducts = !isUnverifiedOwner && (isProductSeller || (!isProductSeller && !isServiceProvider))
-  const showServices = !isUnverifiedOwner && (isServiceProvider || (!isProductSeller && !isServiceProvider))
+  // Only show service provider cards when verified for services (product-seller-only owners must not see service cards)
+  const showServices = !isUnverifiedOwner && isVerifiedServiceProvider
   const serviceProviderOnly = showServices && !showProducts
 
   useEffect(() => {
