@@ -506,6 +506,8 @@ export interface BusinessDto {
   name: string
   ownerName: string
   sellerTier?: string
+  /** Public URL to this shop on the frontend (built by backend using app.frontend-url). */
+  shopUrl?: string
 }
 
 // --- Seller pricing & white-label config (admin + owner dashboard) ---
@@ -747,6 +749,8 @@ export interface ServiceProviderLocationDto {
   serviceCategoryId?: string | null
   serviceCategoryName?: string | null
   serviceCount: number
+  /** Public URL to this provider's profile on the frontend (built by backend). */
+  publicProfileUrl?: string
 }
 
 /** List product categories for dropdown. Public endpoint; auth sent when available. */
