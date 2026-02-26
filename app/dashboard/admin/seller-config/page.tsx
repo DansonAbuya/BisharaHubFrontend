@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { PageLoading } from '@/components/layout/page-loading'
-import { Paintbrush, Tag, UserX, UserCheck } from 'lucide-react'
+import { Paintbrush, Tag, UserX, UserCheck, Copy, Link as LinkIcon } from 'lucide-react'
 
 export default function AdminSellerConfigPage() {
   const { user } = useAuth()
@@ -130,6 +130,25 @@ export default function AdminSellerConfigPage() {
     }
   }
 
+  const buildShopLink = (businessId?: string | null) => {
+    if (!businessId || typeof window === 'undefined') return null
+    return `${window.location.origin}/shop?businessId=${encodeURIComponent(businessId)}`
+  }
+
+  const buildServicesLink = (seller: SellerConfigDto) => {
+    if (!seller.businessId || seller.serviceProviderStatus !== 'verified' || typeof window === 'undefined') return null
+    return `${window.location.origin}/services?businessId=${encodeURIComponent(seller.businessId)}`
+  }
+
+  const copyToClipboard = async (value: string | null) => {
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+    } catch {
+      // ignore clipboard errors
+    }
+  }
+
   return (
     <div className="space-y-6 sm:space-y-8">
       <div className="flex justify-between items-start">
@@ -206,6 +225,52 @@ export default function AdminSellerConfigPage() {
                         >
                           {isActive(seller) ? 'Active' : 'Disabled'}
                         </Badge>
+                      </div>
+                      <div className="mt-3 space-y-1 text-xs">
+                        {buildShopLink(seller.businessId) && (
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-foreground">Shop link:</span>
+                            <div className="flex-1 flex items-center gap-1">
+                              <input
+                                readOnly
+                                value={buildShopLink(seller.businessId) ?? ''}
+                                className="flex-1 h-8 px-2 rounded-md border border-border bg-background text-[11px] sm:text-xs text-foreground truncate"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                onClick={() => copyToClipboard(buildShopLink(seller.businessId))}
+                                title="Copy shop link"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                        {buildServicesLink(seller) && (
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-foreground">Services link:</span>
+                            <div className="flex-1 flex items-center gap-1">
+                              <input
+                                readOnly
+                                value={buildServicesLink(seller) ?? ''}
+                                className="flex-1 h-8 px-2 rounded-md border border-border bg-background text-[11px] sm:text-xs text-foreground truncate"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                onClick={() => copyToClipboard(buildServicesLink(seller))}
+                                title="Copy services link"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">
