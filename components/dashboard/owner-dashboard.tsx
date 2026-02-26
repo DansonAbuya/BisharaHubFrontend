@@ -10,8 +10,17 @@ import { listProducts, getMySellerConfig } from '@/lib/actions/products'
 import { listOrders } from '@/lib/actions/orders'
 import { getAnalytics } from '@/lib/actions/analytics'
 import { getAnalyticsExportCsv } from '@/lib/actions/reports'
-import { listServices, listAppointments } from '@/lib/actions/services'
-import type { ProductDto, OrderDto, SellerConfigDto, ServiceOfferingDto, ServiceAppointmentDto } from '@/lib/api'
+import { listServices, listAppointments, listServiceProviders } from '@/lib/actions/services'
+import type {
+  ProductDto,
+  OrderDto,
+  SellerConfigDto,
+  ServiceOfferingDto,
+  ServiceAppointmentDto,
+  BusinessDto,
+  ServiceProviderLocationDto,
+} from '@/lib/api'
+import { listBusinesses } from '@/lib/api'
 import {
   BarChart,
   Bar,
@@ -73,6 +82,9 @@ export function OwnerDashboard() {
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [sellerConfig, setSellerConfig] = useState<SellerConfigDto | null>(null)
+  const [shopLink, setShopLink] = useState<string | null>(null)
+  const [servicesLink, setServicesLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState<{ shop: boolean; services: boolean }>({ shop: false, services: false })
 
   // Same logic as sidebar: product seller vs service provider
   const isProductSeller = !!(user?.sellerTier || user?.applyingForTier || user?.verificationStatus === 'verified')
@@ -138,6 +150,42 @@ export function OwnerDashboard() {
     }
   }, [showProducts, showServices])
 
+  // Load shareable links for this seller (shop + services) using backend-provided URLs
+  useEffect(() => {
+    let cancelled = false
+    async function loadLinks() {
+      if (!user?.businessId) return
+      try {
+        const [businesses, providers]: [BusinessDto[], ServiceProviderLocationDto[]] = await Promise.all([
+          listBusinesses().catch(() => []),
+          isVerifiedServiceProvider ? listServiceProviders().catch(() => []) : Promise.resolve([]),
+        ])
+        if (cancelled) return
+        const myBusiness = businesses.find((b) => b.id === user.businessId)
+        if (myBusiness?.shopUrl) {
+          setShopLink(myBusiness.shopUrl)
+        } else if (typeof window !== 'undefined') {
+          // Fallback when backend has not yet provided shopUrl
+          setShopLink(`${window.location.origin}/shop?businessId=${encodeURIComponent(user.businessId)}`)
+        }
+        if (isVerifiedServiceProvider) {
+          const myProvider = providers.find((p) => p.businessId === user.businessId)
+          if (myProvider?.publicProfileUrl) {
+            setServicesLink(myProvider.publicProfileUrl)
+          } else if (typeof window !== 'undefined') {
+            setServicesLink(`${window.location.origin}/services?businessId=${encodeURIComponent(user.businessId)}`)
+          }
+        }
+      } catch {
+        // Ignore link loading errors; dashboard still works without share links.
+      }
+    }
+    loadLinks()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.businessId, isVerifiedServiceProvider])
+
   const lowStockProducts = products.filter((p) => (p.quantity ?? 0) <= 30)
 
   const revenueTrend = useMemo(() => {
@@ -188,18 +236,14 @@ export function OwnerDashboard() {
     (a, b) => new Date(b.requestedDate).getTime() - new Date(a.requestedDate).getTime()
   ).slice(0, 5)
 
-  const shopLink = typeof window !== 'undefined' && user?.businessId
-    ? `${window.location.origin}/shop?businessId=${encodeURIComponent(user.businessId)}`
-    : null
-  const servicesLink = typeof window !== 'undefined' && user?.businessId && isVerifiedServiceProvider
-    ? `${window.location.origin}/services?businessId=${encodeURIComponent(user.businessId)}`
-    : null
-
-  const copyToClipboard = async (value: string | null) => {
+  const copyToClipboard = async (value: string | null, type: 'shop' | 'services') => {
     if (!value) return
     try {
       await navigator.clipboard.writeText(value)
-      // silent success; UI is simple so we skip toasts here
+      setCopied((prev) => ({ ...prev, [type]: true }))
+      setTimeout(() => {
+        setCopied((prev) => ({ ...prev, [type]: false }))
+      }, 2000)
     } catch {
       // ignore clipboard errors
     }
@@ -578,11 +622,12 @@ export function OwnerDashboard() {
                     />
                     <Button
                       variant="outline"
-                      size="icon"
-                      className="shrink-0"
-                      onClick={() => copyToClipboard(shopLink)}
+                      size="sm"
+                      className="shrink-0 gap-1"
+                      onClick={() => copyToClipboard(shopLink, 'shop')}
                     >
                       <Copy className="w-4 h-4" />
+                      <span className="text-xs">{copied.shop ? 'Copied' : 'Copy'}</span>
                     </Button>
                   </div>
                 </CardContent>
@@ -605,11 +650,12 @@ export function OwnerDashboard() {
                     />
                     <Button
                       variant="outline"
-                      size="icon"
-                      className="shrink-0"
-                      onClick={() => copyToClipboard(servicesLink)}
+                      size="sm"
+                      className="shrink-0 gap-1"
+                      onClick={() => copyToClipboard(servicesLink, 'services')}
                     >
                       <Copy className="w-4 h-4" />
+                      <span className="text-xs">{copied.services ? 'Copied' : 'Copy'}</span>
                     </Button>
                   </div>
                 </CardContent>

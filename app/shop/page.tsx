@@ -91,9 +91,27 @@ function ShopPageContent() {
   const shopsByTier = useMemo(() => groupShopsByTier(shops), [shops])
   const selectedShop = useMemo(() => shops.find((s) => s.id === selectedShopId), [shops, selectedShopId])
 
+  const decodeBusinessToken = (token: string | null): string | null => {
+    if (!token) return null
+    try {
+      let t = token.replace(/-/g, '+').replace(/_/g, '/')
+      while (t.length % 4 !== 0) {
+        t += '='
+      }
+      if (typeof window !== 'undefined') {
+        return atob(t)
+      }
+      return Buffer.from(t, 'base64').toString('utf-8')
+    } catch {
+      return null
+    }
+  }
+
   useEffect(() => {
+    const token = searchParams.get('shop')
     const id = searchParams.get('businessId')
-    setSelectedShopId(id || null)
+    const decoded = token ? decodeBusinessToken(token) : null
+    setSelectedShopId(decoded || id || null)
   }, [searchParams])
 
   useEffect(() => {
