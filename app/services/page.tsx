@@ -58,7 +58,28 @@ function groupByProvider(
 
 function ServicesPageContent() {
   const searchParams = useSearchParams()
-  const businessIdParam = searchParams.get('businessId')
+  const providerToken = searchParams.get('provider')
+  const businessIdParamRaw = searchParams.get('businessId')
+
+  const decodeBusinessToken = (token: string | null): string | null => {
+    if (!token) return null
+    try {
+      let t = token.replace(/-/g, '+').replace(/_/g, '/')
+      while (t.length % 4 !== 0) {
+        t += '='
+      }
+      if (typeof window !== 'undefined') {
+        // browser
+        return atob(t)
+      }
+      // fallback for non-browser environments
+      return Buffer.from(t, 'base64').toString('utf-8')
+    } catch {
+      return null
+    }
+  }
+
+  const businessIdParam = providerToken ? decodeBusinessToken(providerToken) : businessIdParamRaw
 
   const [services, setServices] = useState<ServiceOfferingDto[]>([])
   const [businesses, setBusinesses] = useState<BusinessDto[]>([])
@@ -271,7 +292,7 @@ function ServicesPageContent() {
                 {serviceProviders.map((p) => (
                   <Link
                     key={p.ownerId}
-                    href={`/services?businessId=${encodeURIComponent(p.businessId)}`}
+                    href={p.publicProfileUrl ?? `/services?businessId=${encodeURIComponent(p.businessId)}`}
                     className="block"
                   >
                     <Card className="border-border overflow-hidden hover:border-primary/40 hover:bg-muted/20 transition-colors h-full">
