@@ -23,7 +23,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { DollarSign, Package, ShoppingCart, TrendingUp, Wrench, CalendarCheck, Calendar, Clock } from 'lucide-react'
+import { DollarSign, Package, ShoppingCart, TrendingUp, Wrench, CalendarCheck, Calendar, Clock, Copy } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
@@ -187,6 +187,23 @@ export function OwnerDashboard() {
   const recentAppointments = [...appointments].sort(
     (a, b) => new Date(b.requestedDate).getTime() - new Date(a.requestedDate).getTime()
   ).slice(0, 5)
+
+  const shopLink = typeof window !== 'undefined' && user?.businessId
+    ? `${window.location.origin}/shop?businessId=${encodeURIComponent(user.businessId)}`
+    : null
+  const servicesLink = typeof window !== 'undefined' && user?.businessId && isVerifiedServiceProvider
+    ? `${window.location.origin}/services?businessId=${encodeURIComponent(user.businessId)}`
+    : null
+
+  const copyToClipboard = async (value: string | null) => {
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+      // silent success; UI is simple so we skip toasts here
+    } catch {
+      // ignore clipboard errors
+    }
+  }
 
   // Service provider overview (when they only offer services, or as a section when they do both)
   const serviceOverviewSection = showServices && (
@@ -540,6 +557,67 @@ export function OwnerDashboard() {
         }
         actions={showProducts ? <OwnerExportReportButton /> : undefined}
       />
+
+      {(shopLink || servicesLink) && (
+        <PageSection>
+          <div className="grid gap-4 md:grid-cols-2">
+            {shopLink && showProducts && (
+              <Card className="border-border">
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-foreground">Share your shop</CardTitle>
+                  <CardDescription>
+                    Copy this link and send it to customers to open your products shop directly.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={shopLink}
+                      className="flex-1 h-9 px-3 rounded-md border border-border bg-background text-xs sm:text-sm text-foreground truncate"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={() => copyToClipboard(shopLink)}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {servicesLink && showServices && (
+              <Card className="border-border">
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-foreground">Share your services page</CardTitle>
+                  <CardDescription>
+                    Copy this link so customers land on your services on BiasharaHub.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={servicesLink}
+                      className="flex-1 h-9 px-3 rounded-md border border-border bg-background text-xs sm:text-sm text-foreground truncate"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={() => copyToClipboard(servicesLink)}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </PageSection>
+      )}
 
       {serviceProviderOnly ? serviceOverviewSection : (
         <>
