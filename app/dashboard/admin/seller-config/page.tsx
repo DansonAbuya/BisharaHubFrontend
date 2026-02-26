@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { listSellerConfigs, setSellerPricingPlan, setSellerBranding, setOwnerAccountStatus } from '@/lib/actions/admin'
-import type { SellerConfigDto } from '@/lib/api'
+import { listServiceProviders } from '@/lib/actions/services'
+import type { SellerConfigDto, BusinessDto, ServiceProviderLocationDto } from '@/lib/api'
+import { listBusinesses } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +22,9 @@ export default function AdminSellerConfigPage() {
   const [error, setError] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
   const [statusChangingId, setStatusChangingId] = useState<string | null>(null)
+  const [businessUrls, setBusinessUrls] = useState<Record<string, string>>({})
+  const [serviceUrls, setServiceUrls] = useState<Record<string, string>>({})
+  const [copied, setCopied] = useState<Record<string, { shop?: boolean; services?: boolean }>>({})
 
   const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'assistant_admin'
 
@@ -39,6 +44,37 @@ export default function AdminSellerConfigPage() {
       return
     }
     loadSellers()
+  }, [isPlatformAdmin])
+
+  // Load business and service provider URLs (shopUrl/publicProfileUrl) from backend
+  useEffect(() => {
+    if (!isPlatformAdmin) return
+    let cancelled = false
+    async function loadLinks() {
+      try {
+        const [businesses, providers]: [BusinessDto[], ServiceProviderLocationDto[]] = await Promise.all([
+          listBusinesses().catch(() => []),
+          listServiceProviders().catch(() => []),
+        ])
+        if (cancelled) return
+        const bizMap: Record<string, string> = {}
+        businesses.forEach((b) => {
+          if (b.id && b.shopUrl) bizMap[b.id] = b.shopUrl
+        })
+        const svcMap: Record<string, string> = {}
+        providers.forEach((p) => {
+          if (p.businessId && p.publicProfileUrl) svcMap[p.businessId] = p.publicProfileUrl
+        })
+        setBusinessUrls(bizMap)
+        setServiceUrls(svcMap)
+      } catch {
+        // ignore link loading errors
+      }
+    }
+    loadLinks()
+    return () => {
+      cancelled = true
+    }
   }, [isPlatformAdmin])
 
   if (!isPlatformAdmin) {
@@ -131,19 +167,35 @@ export default function AdminSellerConfigPage() {
   }
 
   const buildShopLink = (businessId?: string | null) => {
-    if (!businessId || typeof window === 'undefined') return null
+    if (!businessId) return null
+    const fromBackend = businessUrls[businessId]
+    if (fromBackend) return fromBackend
+    if (typeof window === 'undefined') return null
     return `${window.location.origin}/shop?businessId=${encodeURIComponent(businessId)}`
   }
 
   const buildServicesLink = (seller: SellerConfigDto) => {
-    if (!seller.businessId || seller.serviceProviderStatus !== 'verified' || typeof window === 'undefined') return null
+    if (!seller.businessId || seller.serviceProviderStatus !== 'verified') return null
+    const fromBackend = serviceUrls[seller.businessId]
+    if (fromBackend) return fromBackend
+    if (typeof window === 'undefined') return null
     return `${window.location.origin}/services?businessId=${encodeURIComponent(seller.businessId)}`
   }
 
-  const copyToClipboard = async (value: string | null) => {
+  const copyToClipboard = async (value: string | null, sellerId: string, type: 'shop' | 'services') => {
     if (!value) return
     try {
       await navigator.clipboard.writeText(value)
+      setCopied((prev) => ({
+        ...prev,
+        [sellerId]: { ...(prev[sellerId] || {}), [type]: true },
+      }))
+      setTimeout(() => {
+        setCopied((prev) => ({
+          ...prev,
+          [sellerId]: { ...(prev[sellerId] || {}), [type]: false },
+        }))
+      }, 2000)
     } catch {
       // ignore clipboard errors
     }
@@ -239,12 +291,15 @@ export default function AdminSellerConfigPage() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                onClick={() => copyToClipboard(buildShopLink(seller.businessId))}
+                                size="sm"
+                                className="h-8 shrink-0 gap-1"
+                                onClick={() => copyToClipboard(buildShopLink(seller.businessId), seller.userId, 'shop')}
                                 title="Copy shop link"
                               >
                                 <Copy className="w-3 h-3" />
+                                <span className="text-[11px]">
+                                  {copied[seller.userId]?.shop ? 'Copied' : 'Copy'}
+                                </span>
                               </Button>
                             </div>
                           </div>
@@ -261,12 +316,15 @@ export default function AdminSellerConfigPage() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                onClick={() => copyToClipboard(buildServicesLink(seller))}
+                                size="sm"
+                                className="h-8 shrink-0 gap-1"
+                                onClick={() => copyToClipboard(buildServicesLink(seller), seller.userId, 'services')}
                                 title="Copy services link"
                               >
                                 <Copy className="w-3 h-3" />
+                                <span className="text-[11px]">
+                                  {copied[seller.userId]?.services ? 'Copied' : 'Copy'}
+                                </span>
                               </Button>
                             </div>
                           </div>
