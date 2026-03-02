@@ -604,11 +604,18 @@ function ShopPageContent() {
                             {formatPrice(product.price)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {(product.quantity ?? 0)} in stock
+                            {(product.quantity ?? 0) > 0
+                              ? `${product.quantity} in stock`
+                              : (product.processingQuantity ?? 0) > 0
+                                ? `${product.processingQuantity} being processed – coming soon`
+                                : 'Out of stock'}
                           </p>
                         </div>
                         {(product.quantity ?? 0) > 0 && (product.quantity ?? 0) <= 10 && (
                           <Badge variant="secondary" className="text-xs">Limited</Badge>
+                        )}
+                        {(product.quantity ?? 0) === 0 && (product.processingQuantity ?? 0) > 0 && (
+                          <Badge variant="outline" className="text-xs text-amber-600 border-amber-500/50">Processing</Badge>
                         )}
                       </div>
                       <Button
@@ -616,7 +623,11 @@ function ShopPageContent() {
                         disabled={(product.quantity ?? 0) === 0}
                         className="w-full min-h-[44px] bg-primary hover:bg-primary/90 text-primary-foreground"
                       >
-                        {(product.quantity ?? 0) === 0 ? 'Out of stock' : 'Add to cart'}
+                        {(product.quantity ?? 0) === 0
+                          ? (product.processingQuantity ?? 0) > 0
+                            ? 'Coming soon'
+                            : 'Out of stock'
+                          : 'Add to cart'}
                       </Button>
                     </CardContent>
                   </Card>

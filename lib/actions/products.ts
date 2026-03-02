@@ -82,6 +82,25 @@ export async function updateProduct(
   return res.json()
 }
 
+/** Set product price from supplier cost with a margin. Owner-only. Price = unitCost × (1 + marginPercent/100). */
+export async function setPriceFromCost(
+  id: string,
+  data: { unitCost: number; marginPercent?: number }
+): Promise<ProductDto> {
+  const res = await backendFetch(`/products/${id}/price-from-cost`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      unitCost: data.unitCost,
+      marginPercent: data.marginPercent ?? 0,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to set price from cost')
+  }
+  return res.json()
+}
+
 export async function deleteProduct(id: string): Promise<void> {
   const res = await backendFetch(`/products/${id}`, { method: 'DELETE' })
   if (!res.ok) {
