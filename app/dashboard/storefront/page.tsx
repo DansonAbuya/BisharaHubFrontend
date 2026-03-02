@@ -441,11 +441,18 @@ export default function StorefrontPage() {
                       {formatPrice(product.price)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {(product.quantity ?? 0)} in stock
+                      {(product.quantity ?? 0) > 0
+                        ? `${product.quantity} in stock`
+                        : (product.processingQuantity ?? 0) > 0
+                          ? `${product.processingQuantity} being processed – coming soon`
+                          : 'Out of stock'}
                     </p>
                   </div>
-                  {(product.quantity ?? 0) <= 10 && (
+                  {(product.quantity ?? 0) > 0 && (product.quantity ?? 0) <= 10 && (
                     <Badge className="bg-accent/30 text-accent">Limited</Badge>
+                  )}
+                  {(product.quantity ?? 0) === 0 && (product.processingQuantity ?? 0) > 0 && (
+                    <Badge variant="outline" className="text-amber-600 border-amber-500/50">Processing</Badge>
                   )}
                 </div>
                 <Button
@@ -453,7 +460,11 @@ export default function StorefrontPage() {
                   disabled={(product.quantity ?? 0) === 0}
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
-                  {(product.quantity ?? 0) === 0 ? 'Out of Stock' : 'Add to Cart'}
+                  {(product.quantity ?? 0) === 0
+                    ? (product.processingQuantity ?? 0) > 0
+                      ? 'Coming soon'
+                      : 'Out of Stock'
+                    : 'Add to Cart'}
                 </Button>
               </CardContent>
             </Card>

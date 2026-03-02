@@ -25,6 +25,9 @@ import {
   CalendarCheck,
   Clock,
   BookOpen,
+  Factory,
+  ClipboardList,
+  History,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -68,6 +71,9 @@ export function Sidebar({ onClose }: SidebarProps) {
           { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
           { label: 'Products', icon: Package, href: '/dashboard/products' },
           { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
+          { label: 'Suppliers', icon: Factory, href: '/dashboard/suppliers' },
+          { label: 'Receiving', icon: ClipboardList, href: '/dashboard/deliveries' },
+          { label: 'Stock audit', icon: History, href: '/dashboard/stock-ledger' },
         ] : []),
         // Service provider items
         ...(showServices ? [
@@ -98,14 +104,11 @@ export function Sidebar({ onClose }: SidebarProps) {
     ],
     owner: ownerMenu,
     staff: [
-      { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
       { label: 'Products', icon: Package, href: '/dashboard/products' },
       { label: 'Services', icon: Wrench, href: '/dashboard/services' },
       { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
-      { label: 'Expenses', icon: Receipt, href: '/dashboard/expenses' },
-      { label: 'Accounting', icon: Wallet, href: '/dashboard/accounting' },
-      { label: 'Reconciliation', icon: Banknote, href: '/dashboard/reconciliation' },
+      { label: 'Receiving', icon: ClipboardList, href: '/dashboard/deliveries' },
       { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
       { label: 'Wishlist (customer)', icon: Package, href: '/dashboard/wishlist' },
     ],
