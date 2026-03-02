@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,17 +20,25 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { listProducts } from '@/lib/actions/products'
 import { listOrders } from '@/lib/actions/orders'
-import { getAnalytics } from '@/lib/actions/analytics'
+import { getBusinessInsights } from '@/lib/actions/analytics'
 import { getAnalyticsExportCsv } from '@/lib/actions/reports'
-import type { ProductDto, OrderDto } from '@/lib/api'
-import { Download, TrendingUp, Calendar } from 'lucide-react'
+import type { BusinessInsightsDto } from '@/lib/actions/analytics'
+import type { OrderDto } from '@/lib/api'
+import { Download, TrendingUp, TrendingDown, Calendar, Users, Package } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { PageSection } from '@/components/layout/page-section'
 import { PageLoading } from '@/components/layout/page-loading'
 import { formatPrice } from '@/lib/utils'
+
+const PERIOD_OPTIONS = [
+  { value: 'DAY', label: 'Today' },
+  { value: 'WEEK', label: 'Last 7 Days' },
+  { value: 'MONTH', label: 'Last 30 Days' },
+  { value: 'QUARTER', label: 'Last 90 Days' },
+  { value: 'CUSTOM', label: 'Custom Range' },
+]
 
 function AnalyticsExportButton() {
   const [exporting, setExporting] = useState(false)
@@ -61,19 +69,66 @@ function AnalyticsExportButton() {
   )
 }
 
+function toISODate(d: Date): string {
+  return d.toISOString().split('T')[0]!
+}
+
 export default function AnalyticsPage() {
   const { user } = useAuth()
-  const [products, setProducts] = useState<ProductDto[]>([])
+  const [period, setPeriod] = useState('MONTH')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const [showCustomPicker, setShowCustomPicker] = useState(false)
+  const [insights, setInsights] = useState<BusinessInsightsDto | null>(null)
   const [orders, setOrders] = useState<OrderDto[]>([])
-  const [summary, setSummary] = useState<{
-    totalOrders: number
-    totalRevenue: number
-    pendingOrders: number
-    averageOrderValue: number
-  } | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const canAccessAnalytics = user?.role === 'owner' || user?.role === 'super_admin'
+  const canAccessAnalytics = user?.role === 'owner' || user?.role === 'super_admin' || user?.role === 'assistant_admin'
+
+  const loadInsights = useCallback(async () => {
+    const from = period === 'CUSTOM' && customFrom ? customFrom : undefined
+    const to = period === 'CUSTOM' && customTo ? customTo : undefined
+    const data = await getBusinessInsights(period, from, to)
+    setInsights(data)
+  }, [period, customFrom, customTo])
+
+  useEffect(() => {
+    if (!canAccessAnalytics) return
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      try {
+        const [insightsData, ordersData] = await Promise.all([
+          getBusinessInsights(period, period === 'CUSTOM' ? customFrom || undefined : undefined, period === 'CUSTOM' ? customTo || undefined : undefined),
+          listOrders().catch(() => [] as OrderDto[]),
+        ])
+        if (cancelled) return
+        setInsights(insightsData ?? null)
+        setOrders(ordersData)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [canAccessAnalytics, period, customFrom, customTo])
+
+  const orderStatusData = [
+    { name: 'Pending', value: orders.filter((o) => o.status === 'pending').length },
+    { name: 'Processing', value: orders.filter((o) => o.status === 'processing').length },
+    { name: 'Shipped', value: orders.filter((o) => o.status === 'shipped').length },
+    { name: 'Delivered', value: orders.filter((o) => o.status === 'delivered').length },
+  ].filter((d) => d.value > 0)
+
+  const COLORS = ['var(--primary)', 'var(--accent)', 'var(--secondary)', 'var(--chart-1)', 'var(--chart-2)']
+
+  const revenue = insights?.revenue ?? 0
+  const expenses = insights?.expenses ?? 0
+  const profitLoss = insights?.profitLoss ?? 0
+  const orderCount = insights?.orderCount ?? 0
+  const avgOrderValue = insights?.averageOrderValue ?? 0
+  const pendingOrdersCount = orders.filter((o) => o.status === 'pending').length
+
   if (!canAccessAnalytics) {
     return (
       <div className="space-y-6 sm:space-y-8">
@@ -92,311 +147,300 @@ export default function AnalyticsPage() {
     )
   }
 
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        const [productsData, ordersData, analyticsRes] = await Promise.all([
-          listProducts().catch(() => [] as ProductDto[]),
-          listOrders().catch(() => [] as OrderDto[]),
-          getAnalytics().catch(() => null),
-        ])
-        if (cancelled) return
-        setProducts(productsData)
-        setOrders(ordersData)
-        if (analyticsRes) {
-          setSummary({
-            totalOrders: analyticsRes.totalOrders ?? ordersData.length,
-            totalRevenue: Number(analyticsRes.totalRevenue ?? 0),
-            pendingOrders: analyticsRes.pendingOrders ?? ordersData.filter((o: OrderDto) => o.status === 'pending').length,
-            averageOrderValue: Number(analyticsRes.averageOrderValue ?? 0),
-          })
-        } else {
-          const totalRevenue = ordersData.reduce((sum, o) => sum + (o.total ?? 0), 0)
-          const totalOrders = ordersData.length
-          const pendingOrders = ordersData.filter((o) => o.status === 'pending').length
-          setSummary({
-            totalOrders,
-            totalRevenue,
-            pendingOrders,
-            averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
-          })
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // Calculate order status breakdown from real orders
-  const orderStatusData = useMemo(
-    () => [
-      { name: 'Pending', value: orders.filter((o) => o.status === 'pending').length },
-      { name: 'Processing', value: orders.filter((o) => o.status === 'processing').length },
-      { name: 'Shipped', value: orders.filter((o) => o.status === 'shipped').length },
-      { name: 'Delivered', value: orders.filter((o) => o.status === 'delivered').length },
-    ],
-    [orders],
-  )
-
-  // Category breakdown from API products
-  const categoryRevenue = products.reduce(
-    (acc, product) => {
-      const cat = product.category || 'Uncategorized'
-      const existing = acc.find((item) => item.name === cat)
-      const value = product.price * (product.quantity ?? 0)
-      if (existing) {
-        existing.value += value
-      } else {
-        acc.push({ name: cat, value })
-      }
-      return acc
-    },
-    [] as Array<{ name: string; value: number }>,
-  )
-
-  // Top products by value (price * quantity) from API
-  const topProductsByValue = [...products]
-    .sort((a, b) => (b.price * (b.quantity ?? 0)) - (a.price * (a.quantity ?? 0)))
-    .slice(0, 5)
-
-  const COLORS = ['var(--primary)', 'var(--accent)', 'var(--secondary)', 'var(--chart-1)', 'var(--chart-2)']
-
-  // Revenue trend from real orders (group by month)
-  const revenueTrend = useMemo(() => {
-    const byMonth = new Map<string, number>()
-    orders.forEach((order) => {
-      const d = new Date(order.createdAt)
-      if (Number.isNaN(d.getTime())) return
-      const key = `${d.getFullYear()}-${d.getMonth()}`
-      const label = d.toLocaleString('en-US', { month: 'short', year: 'numeric' })
-      const prev = byMonth.get(key) ?? 0
-      byMonth.set(key, prev + (order.total ?? 0))
-      // store label via map key; we'll reconstruct array below
-    })
-    return Array.from(byMonth.entries())
-      .sort(([a], [b]) => (a > b ? 1 : -1))
-      .map(([key, revenue]) => {
-        const [yearStr, monthStr] = key.split('-')
-        const d = new Date(Number(yearStr), Number(monthStr), 1)
-        return {
-          month: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
-          revenue,
-        }
-      })
-  }, [orders])
-
-  const totalRevenue = summary?.totalRevenue ?? 0
-  const averageOrderValue = summary?.averageOrderValue ?? 0
-  const totalOrders = summary?.totalOrders ?? orders.length
-  const pendingOrdersCount = summary?.pendingOrders ?? orders.filter((o) => o.status === 'pending').length
-
-  if (loading) {
-    return <PageLoading message="Loading analytics…" minHeight="280px" />
+  if (loading && !insights) {
+    return <PageLoading message="Loading business insights…" minHeight="280px" />
   }
 
   return (
     <div className="space-y-6 sm:space-y-8">
       <PageHeader
         title="Business Analytics"
-        description="Comprehensive business insights and metrics to help you run BiasharaHub more effectively."
-        actions={
-          <AnalyticsExportButton />
-        }
+        description="Periodic profit/loss, product & staff performance, and business insights."
+        actions={<AnalyticsExportButton />}
       />
 
+      {/* Period filters */}
       <PageSection>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-foreground">Total Revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-primary">
-              KES {(totalRevenue / 1_000_000).toFixed(1)}M
-            </div>
-            <p className="text-xs text-primary mt-2 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" />
-              Lifetime revenue across all orders
-            </p>
+        <Card className="border-border bg-card/50">
+          <CardContent className="py-4 flex flex-wrap items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+            {PERIOD_OPTIONS.map((opt) => (
+              <Button
+                key={opt.value}
+                variant={period === opt.value ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => {
+                  if (opt.value === 'CUSTOM') {
+                    setShowCustomPicker(true)
+                    setPeriod('CUSTOM')
+                    const today = new Date()
+                    const monthAgo = new Date(today)
+                    monthAgo.setMonth(monthAgo.getMonth() - 1)
+                    setCustomFrom(toISODate(monthAgo))
+                    setCustomTo(toISODate(today))
+                  } else {
+                    setShowCustomPicker(false)
+                    setPeriod(opt.value)
+                  }
+                }}
+              >
+                {opt.label}
+              </Button>
+            ))}
+            {showCustomPicker && period === 'CUSTOM' && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="h-8 px-2 rounded-md border border-border bg-background text-sm"
+                />
+                <span className="text-muted-foreground">to</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="h-8 px-2 rounded-md border border-border bg-background text-sm"
+                />
+                <Button size="sm" onClick={loadInsights}>Apply</Button>
+              </div>
+            )}
           </CardContent>
         </Card>
+      </PageSection>
 
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-foreground">Avg Order Value</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">
-              {formatPrice(averageOrderValue)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Per order</p>
-          </CardContent>
-        </Card>
+      {/* Summary cards */}
+      <PageSection>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <Card className="border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-foreground">Revenue</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">{formatPrice(revenue)}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {insights?.from} – {insights?.to}
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-foreground">Total Orders</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-accent">{totalOrders.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-2">Orders placed</p>
-          </CardContent>
-        </Card>
+          <Card className="border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-foreground">Expenses</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">{formatPrice(expenses)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Total for period</p>
+            </CardContent>
+          </Card>
 
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-foreground">Pending Orders</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-secondary-foreground">
-              {pendingOrdersCount}
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Awaiting confirmation</p>
-          </CardContent>
-        </Card>
+          <Card className="border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-foreground">Profit / Loss</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div
+                className={`text-2xl font-bold flex items-center gap-1 ${
+                  profitLoss >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'
+                }`}
+              >
+                {profitLoss >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                {formatPrice(Math.abs(profitLoss))} {profitLoss >= 0 ? 'Profit' : 'Loss'}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Revenue minus expenses</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-foreground">Orders Delivered</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-accent">{orderCount.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1">In selected period</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-foreground">Pending Orders</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-secondary-foreground">{pendingOrdersCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">Awaiting confirmation</p>
+            </CardContent>
+          </Card>
         </div>
       </PageSection>
 
-      <PageSection>
-        <Card className="border-border bg-card/50">
-          <CardContent className="py-4 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
-            <Button variant="ghost" size="sm">
-              Last 30 Days
-            </Button>
-            <Button variant="ghost" size="sm">
-              Last 90 Days
-            </Button>
-            <Button variant="ghost" size="sm">
-              This Year
-            </Button>
-            <Button variant="ghost" size="sm">
-              Custom Range
-            </Button>
-          </CardContent>
-        </Card>
-      </PageSection>
+      {/* Period breakdown chart */}
+      {insights?.periodBreakdown && insights.periodBreakdown.length > 0 && (
+        <PageSection>
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground">Period Performance</CardTitle>
+              <CardDescription>
+                Revenue vs expenses by {insights.periodBreakdown.length <= 31 ? 'day' : insights.periodBreakdown.length <= 14 ? 'week' : 'month'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={insights.periodBreakdown.map((p) => ({
+                    label: p.label.length > 12 ? p.label.slice(0, 10) + '…' : p.label,
+                    revenue: p.revenue,
+                    expenses: p.expenses,
+                    profitLoss: p.profitLoss,
+                  }))}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="label" stroke="var(--muted-foreground)" tick={{ fontSize: 11 }} />
+                  <YAxis stroke="var(--muted-foreground)" />
+                  <Tooltip
+                    formatter={(value: number) => formatPrice(value)}
+                    contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}
+                  />
+                  <Bar dataKey="revenue" name="Revenue" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" name="Expenses" fill="var(--destructive)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </PageSection>
+      )}
 
       <PageSection>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Trend */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-foreground">Revenue Trend</CardTitle>
-            <CardDescription>Monthly revenue performance</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="month" stroke="var(--muted-foreground)" />
-                <YAxis stroke="var(--muted-foreground)" />
-                <Tooltip
-                  formatter={(value: number) => `KES ${(Number(value) / 1_000_000).toFixed(1)}M`}
-                  contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="var(--primary)"
-                  strokeWidth={3}
-                  dot={{ fill: 'var(--primary)', r: 5 }}
-                  activeDot={{ r: 7 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Order Status Distribution */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-foreground">Order Status</CardTitle>
-            <CardDescription>Distribution of orders by status</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={orderStatusData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {orderStatusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Product Category Performance */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-foreground">Revenue by Category</CardTitle>
-            <CardDescription>Sales performance by product category</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={categoryRevenue}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="name" stroke="var(--muted-foreground)" />
-                <YAxis stroke="var(--muted-foreground)" />
-                <Tooltip
-                  formatter={(value) => formatPrice(value)}
-                  contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}
-                />
-                <Bar dataKey="value" fill="var(--primary)" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Top Performing Products */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-foreground">Top Products</CardTitle>
-            <CardDescription>Best selling products this period</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {topProductsByValue.map((product, idx) => (
-                <div key={product.id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 flex-1">
-                    <Badge className="bg-primary/30 text-primary font-bold">#{idx + 1}</Badge>
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{product.name}</p>
-                      <p className="text-xs text-muted-foreground">{product.category || 'Uncategorized'}</p>
+          {/* Product performance */}
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                Product Performance
+              </CardTitle>
+              <CardDescription>Sales by product in selected period</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {insights?.productPerformance && insights.productPerformance.length > 0 ? (
+                <div className="space-y-4 max-h-[320px] overflow-y-auto">
+                  {insights.productPerformance.slice(0, 10).map((p, idx) => (
+                    <div key={p.productId} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Badge className="bg-primary/30 text-primary font-bold shrink-0">#{idx + 1}</Badge>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">{p.productName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {p.category} • {p.quantitySold} sold
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-bold text-foreground">{formatPrice(p.revenue)}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-foreground">
-                      {formatPrice(product.price * (product.quantity ?? 0))}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{(product.quantity ?? 0)} in stock</p>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              ) : (
+                <p className="text-muted-foreground text-sm py-8 text-center">No product sales in this period</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Category performance */}
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground">Revenue by Category</CardTitle>
+              <CardDescription>Sales performance by product category</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {insights?.categoryPerformance && insights.categoryPerformance.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={insights.categoryPerformance.map((c) => ({
+                      name: c.category.length > 12 ? c.category.slice(0, 10) + '…' : c.category,
+                      value: c.revenue,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="name" stroke="var(--muted-foreground)" tick={{ fontSize: 11 }} />
+                    <YAxis stroke="var(--muted-foreground)" />
+                    <Tooltip
+                      formatter={(v) => formatPrice(Number(v))}
+                      contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}
+                    />
+                    <Bar dataKey="value" fill="var(--primary)" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-muted-foreground text-sm py-8 text-center">No category data in this period</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Staff activity */}
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Staff Activity
+              </CardTitle>
+              <CardDescription>Expenses logged by staff in selected period</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {insights?.staffActivity && insights.staffActivity.length > 0 ? (
+                <div className="space-y-4">
+                  {insights.staffActivity.map((s) => (
+                    <div key={s.userId} className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-foreground">{s.name}</p>
+                        <p className="text-xs text-muted-foreground">{s.expenseCount} expense(s) logged</p>
+                      </div>
+                      <p className="font-bold text-foreground">{formatPrice(s.totalExpensesLogged)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-sm py-8 text-center">No staff expense activity in this period</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Order status */}
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground">Order Status</CardTitle>
+              <CardDescription>Distribution of orders by status</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {orderStatusData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={orderStatusData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, value }) => `${name}: ${value}`}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {orderStatusData.map((_, i) => (
+                        <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-muted-foreground text-sm py-8 text-center">No orders yet</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </PageSection>
 
+      {/* Key insights */}
       <PageSection>
         <Card className="border-border bg-primary/5">
           <CardHeader>
@@ -404,27 +448,35 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-3">
-              <TrendingUp className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+              {profitLoss >= 0 ? (
+                <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-500 flex-shrink-0 mt-0.5" />
+              ) : (
+                <TrendingDown className="w-5 h-5 text-red-600 dark:text-red-500 flex-shrink-0 mt-0.5" />
+              )}
               <div>
-                <p className="font-medium text-foreground">Revenue Growth</p>
-                <p className="text-sm text-muted-foreground">Your revenue has grown 12% compared to last month</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <TrendingUp className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-foreground">Order Volume</p>
+                <p className="font-medium text-foreground">Profit & Loss</p>
                 <p className="text-sm text-muted-foreground">
-                  You have {pendingOrdersCount} pending orders that need attention
+                  {profitLoss >= 0
+                    ? `Net profit of ${formatPrice(profitLoss)} for the selected period (${insights?.from ?? ''} – ${insights?.to ?? ''})`
+                    : `Net loss of ${formatPrice(Math.abs(profitLoss))} for the selected period`}
                 </p>
               </div>
             </div>
             <div className="flex gap-3">
-              <TrendingUp className="w-5 h-5 text-secondary-foreground flex-shrink-0 mt-0.5" />
+              <TrendingUp className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-foreground">Inventory Health</p>
+                <p className="font-medium text-foreground">Order Volume</p>
                 <p className="text-sm text-muted-foreground">
-                  3 products have low stock and need immediate reordering
+                  {pendingOrdersCount} pending orders need attention. Avg order value: {formatPrice(avgOrderValue)}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Package className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-foreground">Product Performance</p>
+                <p className="text-sm text-muted-foreground">
+                  {insights?.productPerformance?.length ?? 0} products sold in this period. Use filters above to compare different time ranges.
                 </p>
               </div>
             </div>

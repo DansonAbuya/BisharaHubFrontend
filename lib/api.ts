@@ -638,10 +638,13 @@ export interface ProductDto {
   category: string | null
   price: number
   quantity: number
+  /** Quantity in supplier deliveries being processed (not yet in stock). Shown as "coming soon" to customers. */
+  processingQuantity?: number | null
   description: string | null
   image: string | null
   images: string[] | null
   businessId: string | null
+  moderationStatus?: string | null
 }
 
 /** BiasharaHub Services: category for a service (provider selects, then chooses online or physical). */
@@ -751,6 +754,69 @@ export interface ServiceProviderLocationDto {
   serviceCount: number
   /** Public URL to this provider's profile on the frontend (built by backend). */
   publicProfileUrl?: string
+}
+
+// --- Suppliers, receiving & stock audit ---
+
+export interface SupplierDto {
+  id: string
+  businessId: string
+  name: string
+  phone?: string | null
+  email?: string | null
+  createdAt?: string
+}
+
+export interface SupplierDeliveryItemDto {
+  id: string
+  productId: string
+  productName: string
+  quantity: number
+  receivedQuantity?: number | null
+  unitCost?: number | null
+  lineTotal?: number | null
+  receivedLineTotal?: number | null
+  productPrice?: number | null
+  createdAt?: string
+}
+
+export interface SupplierDeliveryDto {
+  id: string
+  businessId: string
+  supplierId?: string | null
+  supplierName?: string | null
+  deliveryNoteRef?: string | null
+  deliveredAt?: string | null
+  receivedAt?: string | null
+  receivedByUserId?: string | null
+  receivedByName?: string | null
+  status: 'DRAFT' | 'RECEIVED' | string
+  createdAt?: string
+  items?: SupplierDeliveryItemDto[]
+  totalQuantity?: number | null
+  totalCost?: number | null
+  totalReceivedCost?: number | null
+  potentialRevenue?: number | null
+  profitLoss?: number | null
+}
+
+export interface StockLedgerEntryDto {
+  id: string
+  businessId: string
+  productId: string
+  productName?: string | null
+  changeQty: number
+  previousQty?: number | null
+  newQty?: number | null
+  entryType: string
+  supplierId?: string | null
+  supplierName?: string | null
+  deliveryId?: string | null
+  orderId?: string | null
+  performedByUserId?: string | null
+  performedByName?: string | null
+  note?: string | null
+  createdAt?: string
 }
 
 /** List product categories for dropdown. Public endpoint; auth sent when available. */
