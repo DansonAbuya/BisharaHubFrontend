@@ -146,7 +146,8 @@ export function Sidebar({ onClose }: SidebarProps) {
     ],
   }
 
-  const items = user ? (menuItems[user.role as keyof typeof menuItems] ?? menuItems.customer) : []
+  const roleKey = user?.role ? user.role.toLowerCase() : undefined
+  const items = roleKey ? (menuItems[roleKey as keyof typeof menuItems] ?? menuItems.customer) : []
 
   const operationsItems = items.filter((item) =>
     [
@@ -163,6 +164,8 @@ export function Sidebar({ onClose }: SidebarProps) {
       '/dashboard/suppliers',
       '/dashboard/deliveries',
       '/dashboard/stock-ledger',
+      // Supplier portal
+      '/dashboard/supplier-dispatches',
     ].includes(item.href),
   )
   const analyticsItems = items.filter((item) =>
