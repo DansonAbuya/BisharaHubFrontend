@@ -14,8 +14,7 @@ import {
   getSupplierDelivery,
   listSupplierDeliveries,
   listSuppliers,
-  startProcessingSupplierDelivery,
-  moveSupplierDeliveryToStock,
+  confirmSupplierDeliveryReceipt,
 } from '@/lib/actions/suppliers'
 import { listProducts, setPriceFromCost } from '@/lib/actions/products'
 import type { SupplierDeliveryDto, SupplierDto, ProductDto } from '@/lib/api'
@@ -24,7 +23,7 @@ import { ClipboardList, Plus, Loader2, CheckCircle2 } from 'lucide-react'
 export default function DeliveriesPage() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const canReceive = user?.role === 'owner'
+  const canReceive = user?.role === 'owner' || user?.role === 'staff'
 
   const [loading, setLoading] = useState(true)
   const [deliveries, setDeliveries] = useState<SupplierDeliveryDto[]>([])
@@ -46,7 +45,8 @@ export default function DeliveriesPage() {
   const [addQty, setAddQty] = useState<string>('1')
   const [addCost, setAddCost] = useState<string>('')
   const [addingItem, setAddingItem] = useState(false)
-  const [processingAction, setProcessingAction] = useState<'start' | 'move' | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [receivedByItem, setReceivedByItem] = useState<Record<string, string>>({})
   const [settingPriceProductId, setSettingPriceProductId] = useState<string | null>(null)
   const [marginPercent, setMarginPercent] = useState<string>('20')
 
@@ -86,6 +86,12 @@ export default function DeliveriesPage() {
       setAddProductId(products[0]?.id ?? '')
       setAddQty('1')
       setAddCost('')
+      const initialReceived: Record<string, string> = {}
+      ;(d.items ?? []).forEach((it) => {
+        const base = it.receivedQuantity ?? it.quantity ?? 0
+        initialReceived[it.id] = String(base)
+      })
+      setReceivedByItem(initialReceived)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load delivery')
       setSelected(null)
@@ -104,7 +110,7 @@ export default function DeliveriesPage() {
         deliveryNoteRef: deliveryNoteRef.trim() || undefined,
         deliveredAt: null,
       })
-      toast({ title: 'Delivery created', description: 'Add items, then start processing.' })
+      toast({ title: 'Delivery created', description: 'Add items, then confirm receipt when goods arrive.' })
       setCreateOpen(false)
       setSupplierId('')
       setDeliveryNoteRef('')
@@ -146,37 +152,38 @@ export default function DeliveriesPage() {
     }
   }
 
-  const handleStartProcessing = async () => {
+  const handleConfirmReceipt = async () => {
     if (!selectedId) return
-    if (!confirm('Confirm receipt from supplier? Items will move to "Processing" (not yet in stock).')) return
-    setProcessingAction('start')
+    if (!confirm('Confirm receipt from supplier? Quantities will be added to stock.')) return
+    setConfirming(true)
     setError(null)
     try {
-      const updated = await startProcessingSupplierDelivery(selectedId)
+      const current = selected
+      const overrides: Record<string, number> = {}
+      if (current?.items) {
+        for (const it of current.items) {
+          const raw = receivedByItem[it.id]
+          const parsed = raw != null && raw !== '' ? parseInt(raw, 10) : (it.receivedQuantity ?? it.quantity ?? 0)
+          if (Number.isNaN(parsed) || parsed < 0) {
+            setError('Received quantities must be zero or positive numbers')
+            setConfirming(false)
+            return
+          }
+          // Only send when it differs from supplier-stated quantity to keep payload small
+          const supplierQty = it.quantity ?? 0
+          if (parsed !== supplierQty) {
+            overrides[it.id] = parsed
+          }
+        }
+      }
+      const updated = await confirmSupplierDeliveryReceipt(selectedId, overrides)
       setSelected(updated)
-      toast({ title: 'Processing started', description: 'Complete processing, then move to stock.' })
+      toast({ title: 'Receipt confirmed', description: 'Stock was updated from this delivery.' })
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to start processing')
+      setError(e instanceof Error ? e.message : 'Failed to confirm receipt')
     } finally {
-      setProcessingAction(null)
-    }
-  }
-
-  const handleMoveToStock = async () => {
-    if (!selectedId) return
-    if (!confirm('Move these items to stock? Quantities will be added and ledger entries created.')) return
-    setProcessingAction('move')
-    setError(null)
-    try {
-      const updated = await moveSupplierDeliveryToStock(selectedId)
-      setSelected(updated)
-      toast({ title: 'Moved to stock', description: 'Stock ledger entries were created.' })
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to move to stock')
-    } finally {
-      setProcessingAction(null)
+      setConfirming(false)
     }
   }
 
@@ -227,7 +234,7 @@ export default function DeliveriesPage() {
       <Card className="border-border">
         <CardHeader>
           <CardTitle className="text-foreground">Deliveries</CardTitle>
-          <CardDescription>Draft → Start processing → Move to stock. Customers see items as "being processed" until moved to stock.</CardDescription>
+          <CardDescription>Suppliers dispatch, then you confirm receipt to move quantities into stock.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -254,10 +261,8 @@ export default function DeliveriesPage() {
                     <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
                       <CheckCircle2 className="w-4 h-4" /> In stock
                     </span>
-                  ) : d.status === 'PROCESSING' ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-amber-600">Processing</span>
                   ) : (
-                    <span className="text-xs text-muted-foreground">Draft →</span>
+                    <span className="text-xs text-muted-foreground">Pending receipt</span>
                   )}
                 </button>
               ))}
@@ -306,7 +311,7 @@ export default function DeliveriesPage() {
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-foreground">Delivery details</DialogTitle>
-            <DialogDescription>Add items (draft only). Start processing confirms receipt. Move to stock adds quantities.</DialogDescription>
+            <DialogDescription>Add items (draft only). Confirm receipt to add quantities to stock.</DialogDescription>
           </DialogHeader>
 
           {loadingSelected ? (
@@ -382,42 +387,59 @@ export default function DeliveriesPage() {
                             />
                           </div>
                         )}
-                        {(selected.items ?? []).map((it) => (
-                          <div key={it.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2 border border-border rounded-md">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-foreground truncate">{it.productName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Qty: {it.quantity}
-                                {it.receivedQuantity != null && it.receivedQuantity !== it.quantity && (
-                                  <> → Received: {it.receivedQuantity}</>
+                        {(selected.items ?? []).map((it) => {
+                          const receivedValue = receivedByItem[it.id] ?? String(it.receivedQuantity ?? it.quantity ?? 0)
+                          return (
+                            <div key={it.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2 border border-border rounded-md">
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <p className="text-sm font-medium text-foreground truncate">{it.productName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Supplier qty: {it.quantity}
+                                  {it.unitCost != null && <> · Unit cost: KES {it.unitCost}</>}
+                                  {it.lineTotal != null && <> · Line: KES {it.lineTotal}</>}
+                                </p>
+                                {it.productPrice != null && (
+                                  <p className="text-xs text-muted-foreground">Selling price: KES {it.productPrice}</p>
                                 )}
-                                {it.unitCost != null && <> · Unit cost: KES {it.unitCost}</>}
-                                {it.lineTotal != null && <> · Line: KES {it.lineTotal}</>}
-                              </p>
-                              {it.productPrice != null && (
-                                <p className="text-xs text-muted-foreground">Selling price: KES {it.productPrice}</p>
+                                {canReceive && selected.status !== 'RECEIVED' && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-xs text-muted-foreground">Received qty:</span>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      value={receivedValue}
+                                      onChange={(e) =>
+                                        setReceivedByItem((prev) => ({
+                                          ...prev,
+                                          [it.id]: e.target.value,
+                                        }))
+                                      }
+                                      className="h-8 w-24 text-xs"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                              {canReceive && it.unitCost != null && it.unitCost > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleSetPriceFromCost(it.productId, Number(it.unitCost))}
+                                  disabled={!!settingPriceProductId}
+                                >
+                                  {settingPriceProductId === it.productId ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    'Set price from cost'
+                                  )}
+                                </Button>
                               )}
                             </div>
-                            {canReceive && it.unitCost != null && it.unitCost > 0 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleSetPriceFromCost(it.productId, Number(it.unitCost))}
-                                disabled={!!settingPriceProductId}
-                              >
-                                {settingPriceProductId === it.productId ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  'Set price from cost'
-                                )}
-                              </Button>
-                            )}
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
 
-                    {(selected.status === 'DRAFT' || selected.status === 'PROCESSING') && (
+                    {selected.status !== 'RECEIVED' && (
                       <div className="pt-3 border-t border-border space-y-2">
                         {selected.status === 'DRAFT' && (
                           <>
@@ -459,20 +481,19 @@ export default function DeliveriesPage() {
                               {addingItem ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add item'}
                             </Button>
                           )}
-                          {canReceive && selected.status === 'DRAFT' && (
-                            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handleStartProcessing} disabled={!!processingAction}>
-                              {processingAction === 'start' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Start processing'}
-                            </Button>
-                          )}
-                          {canReceive && selected.status === 'PROCESSING' && (
-                            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handleMoveToStock} disabled={!!processingAction}>
-                              {processingAction === 'move' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Move to stock'}
+                          {canReceive && (selected.items ?? []).length > 0 && (
+                            <Button
+                              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                              onClick={handleConfirmReceipt}
+                              disabled={confirming}
+                            >
+                              {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm receipt & update stock'}
                             </Button>
                           )}
                         </div>
-                        {!canReceive && (selected.status === 'DRAFT' || selected.status === 'PROCESSING') && (
+                        {!canReceive && selected.status !== 'RECEIVED' && (
                           <p className="text-xs text-muted-foreground">
-                            Only the business owner can start processing or move to stock.
+                            Only the business owner or staff can confirm receipt.
                           </p>
                         )}
                       </div>
