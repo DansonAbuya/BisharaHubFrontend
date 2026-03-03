@@ -18,6 +18,7 @@ import {
   updateProduct,
   deleteProduct,
   uploadProductImage,
+  approveProduct,
 } from '@/lib/actions/products'
 import type { ProductDto, ProductCategoryDto } from '@/lib/api'
 import { Plus, Edit2, Trash2, BarChart3, Loader2 } from 'lucide-react'
@@ -37,6 +38,7 @@ export default function ProductsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [formSubmitting, setFormSubmitting] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [approvingId, setApprovingId] = useState<string | null>(null)
 
   // Form state for add/edit
   const [formName, setFormName] = useState('')
@@ -198,6 +200,20 @@ export default function ProductsPage() {
     }
   }
 
+  const handleApprove = async (id: string) => {
+    if (!confirm('Mark this product as ready for sale? It will become visible to customers.')) return
+    setApprovingId(id)
+    setError(null)
+    try {
+      await approveProduct(id)
+      await loadProducts()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to approve product')
+    } finally {
+      setApprovingId(null)
+    }
+  }
+
   const canManage = user?.role === 'owner' || user?.role === 'staff'
 
   return (
@@ -292,6 +308,15 @@ export default function ProductsPage() {
               <div className="space-y-3">
                 {filteredProducts.map((product) => {
                   const stockStatus = getStockStatus(product.quantity ?? 0)
+                  const moderation = (product.moderationStatus || 'pending_review').toLowerCase()
+                  const moderationLabel =
+                    moderation === 'approved' ? 'Ready for sale' : moderation === 'rejected' ? 'Rejected' : 'Pending approval'
+                  const moderationColor =
+                    moderation === 'approved'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : moderation === 'rejected'
+                        ? 'bg-destructive/10 text-destructive border border-destructive/30'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
                   return (
                     <div
                       key={product.id}
@@ -315,7 +340,16 @@ export default function ProductsPage() {
                             <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1">{product.description || '—'}</p>
                           </div>
                         </div>
-                        <Badge className="bg-primary/30 text-primary text-xs w-fit">{product.category || 'Uncategorized'}</Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge className="bg-primary/30 text-primary text-xs w-fit">
+                            {product.category || 'Uncategorized'}
+                          </Badge>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full inline-flex items-center justify-center ${moderationColor}`}
+                          >
+                            {moderationLabel}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 py-3 border-y border-border mb-3">
@@ -348,6 +382,21 @@ export default function ProductsPage() {
                               <Edit2 className="w-4 h-4" />
                               <span className="hidden sm:inline ml-1 text-xs">Edit</span>
                             </Button>
+                            {user?.role === 'owner' && moderation !== 'approved' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-emerald-700 h-8 px-2"
+                                onClick={() => handleApprove(product.id)}
+                                disabled={approvingId === product.id}
+                              >
+                                {approvingId === product.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  'Mark ready for sale'
+                                )}
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
