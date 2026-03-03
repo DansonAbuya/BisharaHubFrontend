@@ -63,7 +63,15 @@ export default function SuppliersPage() {
     setSaving(true)
     setError(null)
     try {
-      await createSupplier({ name: name.trim(), phone: phone.trim() || undefined, email: email.trim() || undefined })
+      const trimmedName = name.trim()
+      const trimmedPhone = phone.trim()
+      const trimmedEmail = email.trim()
+      if (!trimmedName || !trimmedPhone || !trimmedEmail) {
+        setError('Name, phone and email are all required')
+        setSaving(false)
+        return
+      }
+      await createSupplier({ name: trimmedName, phone: trimmedPhone, email: trimmedEmail })
       toast({ title: 'Supplier created', description: 'You can now use it in receiving.' })
       setOpen(false)
       resetForm()
@@ -168,12 +176,24 @@ export default function SuppliersPage() {
               <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-10" required />
             </div>
             <div>
-              <label className="text-sm font-medium text-foreground">Phone (optional)</label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-1 h-10" />
+              <label className="text-sm font-medium text-foreground">Phone (E.164, e.g. +254712345678)</label>
+              <Input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="mt-1 h-10"
+                required
+              />
             </div>
             <div>
-              <label className="text-sm font-medium text-foreground">Email (optional)</label>
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 h-10" />
+              <label className="text-sm font-medium text-foreground">Email</label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 h-10"
+                required
+              />
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setOpen(false)} disabled={saving}>
