@@ -87,6 +87,7 @@ export function Sidebar({ onClose }: SidebarProps) {
     owner: ownerMenu,
     staff: [
       { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
+      { label: 'Purchase orders', icon: ClipboardList, href: '/dashboard/purchase-orders' },
       { label: 'Products', icon: Package, href: '/dashboard/products' },
       { label: 'Services', icon: Wrench, href: '/dashboard/services' },
       { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
@@ -154,6 +155,7 @@ export function Sidebar({ onClose }: SidebarProps) {
     [
       '/dashboard',
       '/dashboard/orders',
+      '/dashboard/purchase-orders',
       '/dashboard/products',
       '/dashboard/services',
       '/dashboard/shipments',
