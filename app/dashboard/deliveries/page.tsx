@@ -243,29 +243,45 @@ export default function DeliveriesPage() {
             <p className="text-sm text-muted-foreground py-8 text-center">No deliveries yet.</p>
           ) : (
             <div className="space-y-2">
-              {deliveries.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => openDetails(d.id)}
-                  className="w-full text-left p-3 border border-border rounded-lg bg-card/60 hover:bg-secondary/30 transition flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground truncate">
-                      {d.supplierName || 'Supplier'}{d.deliveryNoteRef ? ` · ${d.deliveryNoteRef}` : ''}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      Status: {d.status} {d.receivedAt ? `· Received: ${new Date(d.receivedAt).toLocaleString()}` : ''}
-                    </p>
-                  </div>
-                  {d.status === 'RECEIVED' ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
-                      <CheckCircle2 className="w-4 h-4" /> In stock
-                    </span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Pending receipt</span>
-                  )}
-                </button>
-              ))}
+              {deliveries.map((d) => {
+                const totalCost = d.totalCost != null ? Number(d.totalCost) : null
+                const totalReceivedCost = d.totalReceivedCost != null ? Number(d.totalReceivedCost) : null
+                const profitLoss = d.profitLoss != null ? Number(d.profitLoss) : null
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => openDetails(d.id)}
+                    className="w-full text-left p-3 border border-border rounded-lg bg-card/60 hover:bg-secondary/30 transition flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <p className="font-medium text-foreground truncate">
+                        {d.supplierName || 'Supplier'}{d.deliveryNoteRef ? ` · ${d.deliveryNoteRef}` : ''}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        Status: {d.status} {d.receivedAt ? `· Received: ${new Date(d.receivedAt).toLocaleString()}` : ''}
+                      </p>
+                      {(totalCost != null || totalReceivedCost != null || profitLoss != null) && (
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {totalCost != null && <>Supplier cost: KES {totalCost.toLocaleString()} · </>}
+                          {totalReceivedCost != null && <>Received cost: KES {totalReceivedCost.toLocaleString()} · </>}
+                          {profitLoss != null && (
+                            <span className={profitLoss >= 0 ? 'text-emerald-600' : 'text-destructive'}>
+                              P&amp;L: {profitLoss >= 0 ? '+' : ''}KES {profitLoss.toLocaleString()}
+                            </span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                    {d.status === 'RECEIVED' ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                        <CheckCircle2 className="w-4 h-4" /> In stock
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Pending receipt</span>
+                    )}
+                  </button>
+                )
+              })}
             </div>
           )}
         </CardContent>
