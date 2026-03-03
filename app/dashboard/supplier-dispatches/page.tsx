@@ -83,13 +83,21 @@ export default function SupplierDispatchesPage() {
     if (createOpen) loadPurchaseOrders()
   }, [createOpen])
 
-  const handleAddItemRow = () => {
-    setItems((prev) => [...prev, { productId: '', quantity: '1', unitCost: '' }])
-  }
-
-  const handleRemoveItemRow = (index: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== index))
-  }
+  // When a PO is selected, initialise one row per PO item so the supplier can
+  // enter dispatched quantities and unit prices against each order line.
+  useEffect(() => {
+    if (selectedPurchaseOrder) {
+      setItems(
+        (selectedPurchaseOrder.items ?? []).map((item) => ({
+          productId: item.productId || '',
+          quantity: item.requestedQuantity != null ? String(item.requestedQuantity) : '',
+          unitCost: '',
+        })),
+      )
+    } else {
+      setItems([{ productId: '', quantity: '1', unitCost: '' }])
+    }
+  }, [selectedPurchaseOrder])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -97,16 +105,31 @@ export default function SupplierDispatchesPage() {
       setError('Select a purchase order')
       return
     }
+    if (!selectedPurchaseOrder) {
+      setError('Purchase order details could not be loaded')
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
-      const cleanedItems = items
-        .map((row) => ({
-          productId: row.productId,
-          quantity: parseInt(row.quantity, 10),
-          unitCost: row.unitCost.trim() ? Number(row.unitCost) : null,
-        }))
-        .filter((row) => row.productId && !Number.isNaN(row.quantity) && row.quantity > 0)
+      const cleanedItems = (selectedPurchaseOrder.items ?? [])
+        .map((poItem, index) => {
+          const row = items[index] || { quantity: '0', unitCost: '' }
+          const qty = parseInt(row.quantity, 10)
+          const unitCost = row.unitCost.trim() ? Number(row.unitCost) : null
+          return {
+            productId: poItem.productId || null,
+            quantity: qty,
+            unitCost,
+          }
+        })
+        .filter(
+          (row) =>
+            row.productId &&
+            !Number.isNaN(row.quantity) &&
+            row.quantity > 0,
+        ) as { productId: string; quantity: number; unitCost?: number | null }[]
 
       if (cleanedItems.length === 0) {
         setError('Add at least one valid line item')
@@ -308,67 +331,57 @@ export default function SupplierDispatchesPage() {
               </div>
             )}
             <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">Items</p>
+              <p className="text-sm font-medium text-foreground">Dispatch against order lines</p>
               <p className="text-xs text-muted-foreground">
-                Choose the seller&apos;s products and enter the quantities you are sending. The seller will later confirm received quantities per line.
+                For each item in the purchase order, enter the quantity you are dispatching and the agreed unit price.
               </p>
               <div className="space-y-2">
-                {items.map((row, index) => (
-                  <div key={index} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
-                    <select
-                      className="h-10 px-3 rounded-md border border-border bg-background text-foreground text-sm"
-                      value={row.productId}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setItems((prev) => prev.map((r, i) => (i === index ? { ...r, productId: v } : r)))
-                      }}
-                    >
-                      <option value="">Select product</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={row.quantity}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setItems((prev) => prev.map((r, i) => (i === index ? { ...r, quantity: v } : r)))
-                      }}
-                      className="h-10"
-                      placeholder="Qty"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={row.unitCost}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setItems((prev) => prev.map((r, i) => (i === index ? { ...r, unitCost: v } : r)))
-                      }}
-                      className="h-10"
-                      placeholder="Unit cost (optional)"
-                    />
-                    <div className="flex justify-end">
-                      {items.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRemoveItemRow(index)}
-                        >
-                          Remove
-                        </Button>
-                      )}
+                {(selectedPurchaseOrder?.items ?? []).map((poItem, index) => {
+                  const row = items[index] || { quantity: '', unitCost: '' }
+                  return (
+                    <div key={poItem.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
+                      <div className="text-xs text-left">
+                        <div className="font-medium text-foreground truncate">
+                          {poItem.productName || poItem.description || '—'}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          Requested: {poItem.requestedQuantity ?? '—'} {poItem.unitOfMeasure || ''}
+                        </div>
+                      </div>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={row.quantity}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setItems((prev) => prev.map((r, i) => (i === index ? { ...r, quantity: v } : r)))
+                        }}
+                        className="h-10 text-xs"
+                        placeholder="Qty dispatched"
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={row.unitCost}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setItems((prev) => prev.map((r, i) => (i === index ? { ...r, unitCost: v } : r)))
+                        }}
+                        className="h-10 text-xs"
+                        placeholder="Unit price"
+                      />
+                      <div className="text-right text-[11px] text-muted-foreground pr-1">
+                        {row.quantity && row.unitCost
+                          ? `Line total: KES ${(
+                              parseFloat(row.quantity || '0') * parseFloat(row.unitCost || '0')
+                            ).toLocaleString()}`
+                          : 'Line total: —'}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={handleAddItemRow}>
-                Add another line
-              </Button>
             </div>
             <div className="flex justify-end text-xs text-muted-foreground">
               <span>
