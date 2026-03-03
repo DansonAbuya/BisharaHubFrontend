@@ -50,6 +50,7 @@ export function Sidebar({ onClose }: SidebarProps) {
         // Product seller items
         ...(showProducts ? [
           { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },
+          { label: 'Purchase orders', icon: ClipboardList, href: '/dashboard/purchase-orders' },
           { label: 'Products', icon: Package, href: '/dashboard/products' },
           { label: 'Shipments', icon: Truck, href: '/dashboard/shipments' },
           { label: 'Suppliers', icon: Factory, href: '/dashboard/suppliers' },

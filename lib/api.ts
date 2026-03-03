@@ -819,6 +819,34 @@ export interface StockLedgerEntryDto {
   createdAt?: string
 }
 
+// --- Purchase Orders ---
+
+export interface PurchaseOrderItemDto {
+  id: string
+  purchaseOrderId: string
+  productId?: string | null
+  productName?: string | null
+  description?: string | null
+  unitOfMeasure?: string | null
+  requestedQuantity: number
+  expectedUnitCost?: number | null
+  createdAt?: string
+}
+
+export interface PurchaseOrderDto {
+  id: string
+  businessId: string
+  supplierId?: string | null
+  supplierName?: string | null
+  poNumber?: string | null
+  deliveryNoteRef?: string | null
+  expectedDeliveryDate?: string | null
+  status: string
+  createdAt?: string
+  createdByName?: string | null
+  items?: PurchaseOrderItemDto[]
+}
+
 /** List product categories for dropdown. Public endpoint; auth sent when available. */
 export async function listProductCategories(): Promise<ProductCategoryDto[]> {
   const res = await fetch(`${API_BASE}/products/categories`, {
