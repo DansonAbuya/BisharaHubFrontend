@@ -39,32 +39,13 @@ export function Sidebar({ onClose }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
 
-  // Determine if user is set up for products, services, or both
-  // NOTE: verificationStatus defaults to 'pending' for all owners, so only count 'verified' or explicit tier setup
+  // Owners should always see their full seller sidebar; verification/onboarding is handled in specific flows.
   const isOwner = user?.role === 'owner'
-  const isProductSeller = !!(user?.sellerTier || user?.applyingForTier || user?.verificationStatus === 'verified')
-  const isServiceProvider = !!(user?.serviceProviderStatus)
-  const isVerifiedProductSeller = user?.verificationStatus === 'verified'
-  const isVerifiedServiceProvider = user?.serviceProviderStatus === 'verified'
-  
-  // User is unverified if they are an owner but not verified
-  const isUnverifiedOwner = isOwner && (
-    (isServiceProvider && !isVerifiedServiceProvider && !isProductSeller) ||
-    (isProductSeller && !isVerifiedProductSeller && !isServiceProvider) ||
-    (isServiceProvider && isProductSeller && !isVerifiedServiceProvider && !isVerifiedProductSeller) ||
-    (!isServiceProvider && !isProductSeller)
-  )
+  const showProducts = isOwner
+  const showServices = isOwner && !!user?.serviceProviderStatus
 
-  // Show products/services based on what's set up (only for verified owners)
-  const showProducts = !isUnverifiedOwner && (isProductSeller || (!isProductSeller && !isServiceProvider))
-  const showServices = !isUnverifiedOwner && (isServiceProvider || (!isProductSeller && !isServiceProvider))
-
-  // Build owner menu dynamically - unverified owners only see verification
-  const ownerMenu = isUnverifiedOwner
-    ? [
-        { label: 'Verification', icon: FileCheck, href: '/dashboard/verification' },
-      ]
-    : [
+  // Build owner menu
+  const ownerMenu = [
         { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
         // Product seller items
         ...(showProducts ? [
