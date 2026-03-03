@@ -31,6 +31,20 @@ export default function SupplierDispatchesPage() {
   const [saving, setSaving] = useState(false)
   const [loadingPo, setLoadingPo] = useState(false)
 
+  const selectedPurchaseOrder = useMemo(
+    () => (purchaseOrderId ? purchaseOrders.find((po) => po.id === purchaseOrderId) ?? null : null),
+    [purchaseOrderId, purchaseOrders],
+  )
+
+  const totalDispatchCost = useMemo(() => {
+    return items.reduce((sum, row) => {
+      const qty = parseFloat(row.quantity || '0')
+      const unit = parseFloat(row.unitCost || '0')
+      if (!Number.isFinite(qty) || !Number.isFinite(unit)) return sum
+      return sum + qty * unit
+    }, 0)
+  }, [items])
+
   const load = async () => {
     setLoading(true)
     setError(null)
@@ -260,6 +274,39 @@ export default function SupplierDispatchesPage() {
                 placeholder="e.g. DN-001, Invoice #, etc."
               />
             </div>
+            {selectedPurchaseOrder && (
+              <div className="mt-2 rounded-md border border-border overflow-hidden">
+                <div className="px-3 py-2 border-b border-border text-xs font-medium text-muted-foreground">
+                  Order details (what the seller requested)
+                </div>
+                <div className="max-h-48 overflow-y-auto text-xs">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left px-3 py-1">Item</th>
+                        <th className="text-right px-3 py-1">Requested qty</th>
+                        <th className="text-left px-3 py-1">Unit</th>
+                        <th className="text-right px-3 py-1">Expected cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedPurchaseOrder.items ?? []).map((item) => (
+                        <tr key={item.id} className="border-b border-border last:border-0">
+                          <td className="px-3 py-1">
+                            {item.productName || item.description || '—'}
+                          </td>
+                          <td className="px-3 py-1 text-right">{item.requestedQuantity ?? '—'}</td>
+                          <td className="px-3 py-1">{item.unitOfMeasure || '—'}</td>
+                          <td className="px-3 py-1 text-right">
+                            {item.expectedUnitCost != null ? `KES ${item.expectedUnitCost}` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">Items</p>
               <p className="text-xs text-muted-foreground">
@@ -323,12 +370,20 @@ export default function SupplierDispatchesPage() {
                 Add another line
               </Button>
             </div>
+            <div className="flex justify-end text-xs text-muted-foreground">
+              <span>
+                Total dispatch cost:{' '}
+                <span className="font-medium text-foreground">
+                  {totalDispatchCost > 0 ? `KES ${totalDispatchCost.toLocaleString()}` : '—'}
+                </span>
+              </span>
+            </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setCreateOpen(false)} disabled={saving}>
                 Cancel
               </Button>
               <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground" disabled={saving}>
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit dispatch'}
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm dispatch'}
               </Button>
             </div>
           </form>
