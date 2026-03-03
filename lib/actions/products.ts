@@ -109,6 +109,16 @@ export async function deleteProduct(id: string): Promise<void> {
   }
 }
 
+/** Owner-only: mark product as approved / ready for sale (visible to customers). */
+export async function approveProduct(id: string): Promise<ProductDto> {
+  const res = await backendFetch(`/products/${id}/approve`, { method: 'PATCH' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to approve product')
+  }
+  return res.json()
+}
+
 const MAX_PRODUCT_IMAGE_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB
 
 export async function uploadProductImage(formData: FormData): Promise<{ url: string }> {

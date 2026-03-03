@@ -73,20 +73,18 @@ export async function addSupplierDeliveryItem(deliveryId: string, body: { produc
   return res.json()
 }
 
-export async function startProcessingSupplierDelivery(deliveryId: string): Promise<SupplierDeliveryDto> {
-  const res = await backendFetch(`/supplier-deliveries/${deliveryId}/start-processing`, { method: 'PATCH' })
+export async function confirmSupplierDeliveryReceipt(
+  deliveryId: string,
+  receivedQuantities?: Record<string, number>,
+): Promise<SupplierDeliveryDto> {
+  const hasBody = receivedQuantities && Object.keys(receivedQuantities).length > 0
+  const res = await backendFetch(`/supplier-deliveries/${deliveryId}/confirm-receipt`, {
+    method: 'PATCH',
+    body: hasBody ? JSON.stringify({ receivedQuantities }) : undefined,
+  })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error((err as { error?: string }).error || 'Failed to start processing')
-  }
-  return res.json()
-}
-
-export async function moveSupplierDeliveryToStock(deliveryId: string): Promise<SupplierDeliveryDto> {
-  const res = await backendFetch(`/supplier-deliveries/${deliveryId}/move-to-stock`, { method: 'PATCH' })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as { error?: string }).error || 'Failed to move to stock')
+    throw new Error((err as { error?: string }).error || 'Failed to confirm receipt')
   }
   return res.json()
 }
