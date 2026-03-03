@@ -56,7 +56,10 @@ export async function createPurchaseOrder(body: {
 
 export async function listMyPurchaseOrdersAsSupplier(): Promise<PurchaseOrderDto[]> {
   const res = await backendFetch('/purchase-orders/my')
-  if (!res.ok) return []
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to list purchase orders')
+  }
   return res.json()
 }
 

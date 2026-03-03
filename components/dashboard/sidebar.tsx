@@ -103,8 +103,9 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Profile', icon: Users, href: '/dashboard/profile' },
     ],
     supplier: [
-      // Supplier portal: focus on dispatches and reconciliation with the seller.
+      // Supplier portal: dispatches and purchase orders assigned by the seller.
       { label: 'My dispatches', icon: ClipboardList, href: '/dashboard/supplier-dispatches' },
+      { label: 'Purchase orders', icon: ClipboardList, href: '/dashboard/purchase-orders' },
       { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' },
     ],
