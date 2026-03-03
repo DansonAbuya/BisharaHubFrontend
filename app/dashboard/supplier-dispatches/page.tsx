@@ -36,6 +36,13 @@ export default function SupplierDispatchesPage() {
     [purchaseOrderId, purchaseOrders],
   )
 
+  // Only PO lines that are linked to a concrete product can be dispatched,
+  // because dispatch items must reference actual products for stock updates.
+  const dispatchablePoItems = useMemo(
+    () => (selectedPurchaseOrder?.items ?? []).filter((item) => item.productId),
+    [selectedPurchaseOrder],
+  )
+
   const totalDispatchCost = useMemo(() => {
     return items.reduce((sum, row) => {
       const qty = parseFloat(row.quantity || '0')
@@ -83,12 +90,12 @@ export default function SupplierDispatchesPage() {
     if (createOpen) loadPurchaseOrders()
   }, [createOpen])
 
-  // When a PO is selected, initialise one row per PO item so the supplier can
+  // When a PO is selected, initialise one row per dispatchable PO item so the supplier can
   // enter dispatched quantities and unit prices against each order line.
   useEffect(() => {
-    if (selectedPurchaseOrder) {
+    if (dispatchablePoItems.length > 0) {
       setItems(
-        (selectedPurchaseOrder.items ?? []).map((item) => ({
+        dispatchablePoItems.map((item) => ({
           productId: item.productId || '',
           quantity: item.requestedQuantity != null ? String(item.requestedQuantity) : '',
           unitCost: '',
@@ -109,11 +116,15 @@ export default function SupplierDispatchesPage() {
       setError('Purchase order details could not be loaded')
       return
     }
+    if (dispatchablePoItems.length === 0) {
+      setError('This purchase order has no product-backed items to dispatch. Ask the seller to create a PO with products.')
+      return
+    }
 
     setSaving(true)
     setError(null)
     try {
-      const cleanedItems = (selectedPurchaseOrder.items ?? [])
+      const cleanedItems = dispatchablePoItems
         .map((poItem, index) => {
           const row = items[index] || { quantity: '0', unitCost: '' }
           const qty = parseInt(row.quantity, 10)
