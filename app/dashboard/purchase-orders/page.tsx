@@ -5,19 +5,55 @@ import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageLoading } from '@/components/layout/page-loading'
 import { useToast } from '@/hooks/use-toast'
-import { listPurchaseOrders, createPurchaseOrder } from '@/lib/actions/purchaseOrders'
+import { listPurchaseOrders, listMyPurchaseOrdersAsSupplier, getPurchaseOrder, createPurchaseOrder } from '@/lib/actions/purchaseOrders'
 import { listSuppliers } from '@/lib/actions/suppliers'
 import { listProducts } from '@/lib/actions/products'
-import type { PurchaseOrderDto, SupplierDto, ProductDto } from '@/lib/api'
-import { ClipboardList, Plus, Loader2 } from 'lucide-react'
+import type { PurchaseOrderDto, PurchaseOrderItemDto, SupplierDto, ProductDto } from '@/lib/api'
+import { ClipboardList, Plus, Loader2, Eye } from 'lucide-react'
+
+function getStatusColor(status: string): string {
+  const s = (status || '').toUpperCase()
+  if (s === 'DRAFT') return 'bg-gray-500 hover:bg-gray-500'
+  if (s === 'SENT') return 'bg-blue-500 hover:bg-blue-500'
+  if (s === 'PARTIALLY_FULFILLED') return 'bg-amber-500 hover:bg-amber-500'
+  if (s === 'FULFILLED') return 'bg-green-600 hover:bg-green-600'
+  if (s === 'CANCELLED') return 'bg-red-600 hover:bg-red-600'
+  return 'bg-gray-500 hover:bg-gray-500'
+}
+
+function formatDate(iso?: string | null) {
+  if (!iso) return '–'
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
+
+function formatMoney(n?: number | null) {
+  if (n == null) return '–'
+  return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(n)
+}
 
 export default function PurchaseOrdersPage() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const canManage = user?.role === 'owner' || user?.role === 'staff'
+  const role = user?.role?.toLowerCase()
+  const canManage = role === 'owner' || role === 'staff'
+  const isSupplier = role === 'supplier'
+  const canView = canManage || isSupplier
 
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState<PurchaseOrderDto[]>([])
@@ -35,18 +71,28 @@ export default function PurchaseOrdersPage() {
   ])
   const [saving, setSaving] = useState(false)
 
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailPo, setDetailPo] = useState<PurchaseOrderDto | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
   const load = async () => {
+    if (!canView) return
     setLoading(true)
     setError(null)
     try {
-      const [poList, s, p] = await Promise.all([
-        listPurchaseOrders(),
-        listSuppliers(),
-        listProducts().catch(() => []),
-      ])
-      setOrders(poList)
-      setSuppliers(s)
-      setProducts(p)
+      if (isSupplier) {
+        const poList = await listMyPurchaseOrdersAsSupplier()
+        setOrders(poList)
+      } else {
+        const [poList, s, p] = await Promise.all([
+          listPurchaseOrders(),
+          listSuppliers(),
+          listProducts().catch(() => []),
+        ])
+        setOrders(poList)
+        setSuppliers(s)
+        setProducts(p)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load purchase orders')
     } finally {
@@ -55,12 +101,12 @@ export default function PurchaseOrdersPage() {
   }
 
   useEffect(() => {
-    if (canManage) {
+    if (canView) {
       load()
     } else {
       setLoading(false)
     }
-  }, [canManage])
+  }, [canView, isSupplier])
 
   const supplierOptions = useMemo(() => suppliers, [suppliers])
 
@@ -127,11 +173,25 @@ export default function PurchaseOrdersPage() {
     }
   }
 
-  if (!canManage) {
+  const openDetail = async (id: string) => {
+    setDetailPo(null)
+    setDetailOpen(true)
+    setDetailLoading(true)
+    try {
+      const po = await getPurchaseOrder(id)
+      setDetailPo(po)
+    } catch (e) {
+      toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to load details', variant: 'destructive' })
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  if (!canView) {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold text-foreground">Purchase orders</h1>
-        <p className="text-sm text-muted-foreground">Only the owner or staff can manage purchase orders.</p>
+        <p className="text-sm text-muted-foreground">Only the owner, staff, or supplier can view purchase orders.</p>
       </div>
     )
   }
@@ -145,13 +205,17 @@ export default function PurchaseOrdersPage() {
             Purchase orders
           </h1>
           <p className="text-sm text-muted-foreground">
-            Tell suppliers what you want (quantities, units, descriptions). Prices are optional – suppliers quote when dispatching.
+            {isSupplier
+              ? 'Purchase orders the seller has placed with you. Dispatch against these when you send goods.'
+              : 'Tell suppliers what you want (quantities, units, descriptions). Prices are optional – suppliers quote when dispatching.'}
           </p>
         </div>
-        <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => setCreateOpen(true)}>
-          <Plus className="w-4 h-4" />
-          New purchase order
-        </Button>
+        {canManage && (
+          <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => setCreateOpen(true)}>
+            <Plus className="w-4 h-4" />
+            New purchase order
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -160,38 +224,136 @@ export default function PurchaseOrdersPage() {
 
       <Card className="border-border">
         <CardHeader>
-          <CardTitle className="text-foreground">Recent purchase orders</CardTitle>
-          <CardDescription>Use purchase orders to control what suppliers should deliver, then reconcile with receiving.</CardDescription>
+          <CardTitle className="text-foreground">
+            {isSupplier ? 'Purchase orders assigned to you' : 'Recent purchase orders'}
+          </CardTitle>
+          <CardDescription>
+            {isSupplier
+              ? 'View what the seller has requested. Use My dispatches to send goods against these POs.'
+              : 'Use purchase orders to control what suppliers should deliver, then reconcile with receiving.'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <PageLoading message="Loading purchase orders…" minHeight="180px" />
           ) : orders.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">No purchase orders yet.</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              {isSupplier ? 'No purchase orders assigned to you yet.' : 'No purchase orders yet.'}
+            </p>
           ) : (
-            <div className="space-y-2">
-              {orders.map((po) => {
-                const totalQty = (po.items ?? []).reduce((sum, it) => sum + (it.requestedQuantity ?? 0), 0)
-                return (
-                  <div
-                    key={po.id}
-                    className="p-3 border border-border rounded-lg bg-card/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-                  >
-                    <div className="min-w-0 space-y-1">
-                      <p className="font-medium text-foreground truncate">
-                        {po.poNumber || 'Purchase order'}{po.supplierName ? ` · ${po.supplierName}` : ''}{po.deliveryNoteRef ? ` · ${po.deliveryNoteRef}` : ''}
+            <div className="space-y-4">
+              {orders.map((po) => (
+                <div
+                  key={po.id}
+                  className="p-4 border border-border rounded-lg bg-card/60 space-y-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">
+                        {po.poNumber || `PO ${String(po.id).slice(0, 8)}`}
+                        {po.supplierName && (
+                          <span className="ml-2 text-sm font-normal text-muted-foreground">· {po.supplierName}</span>
+                        )}
                       </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        Status: {po.status}{po.createdAt ? ` · Created: ${new Date(po.createdAt).toLocaleString()}` : ''}{` · Total qty: ${totalQty}`}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
+                        <span>Expected: {formatDate(po.expectedDeliveryDate)}</span>
+                        <span>Created: {formatDate(po.createdAt)}</span>
+                        {po.createdByName && <span>By: {po.createdByName}</span>}
+                      </div>
                     </div>
+                    <Badge className={getStatusColor(po.status)}>
+                      {(po.status || 'Unknown').replace(/_/g, ' ')}
+                    </Badge>
                   </div>
-                )
-              })}
+                  <div className="rounded-md border border-border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-foreground">Item</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead className="text-foreground">Unit</TableHead>
+                          <TableHead className="text-right">Expected cost</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(po.items ?? []).map((item: PurchaseOrderItemDto) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="text-foreground">
+                              {item.productName || item.description || '–'}
+                            </TableCell>
+                            <TableCell className="text-right">{item.requestedQuantity ?? '–'}</TableCell>
+                            <TableCell className="text-foreground">{item.unitOfMeasure || '–'}</TableCell>
+                            <TableCell className="text-right">{formatMoney(item.expectedUnitCost)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <Button variant="outline" size="sm" className="gap-2" onClick={() => openDetail(po.id)}>
+                    <Eye className="w-4 h-4" />
+                    View full details
+                  </Button>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Detail modal with full breakdown */}
+      <Dialog open={detailOpen} onOpenChange={(open) => { setDetailOpen(open); if (!open) setDetailPo(null) }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">
+              {detailPo?.poNumber || `PO ${detailPo?.id?.slice(0, 8) ?? ''}`} – Full breakdown
+            </DialogTitle>
+            {detailPo && (
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                {detailPo.supplierName && <span>Supplier: {detailPo.supplierName}</span>}
+                <Badge className={getStatusColor(detailPo.status)}>
+                  {(detailPo.status || '').replace(/_/g, ' ')}
+                </Badge>
+              </div>
+            )}
+          </DialogHeader>
+          {detailLoading && !detailPo ? (
+            <PageLoading message="Loading…" minHeight="80px" />
+          ) : detailPo ? (
+            <div className="rounded-md border border-border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-foreground">Product / Description</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-foreground">Unit</TableHead>
+                    <TableHead className="text-right">Expected unit cost</TableHead>
+                    <TableHead className="text-right">Line total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(detailPo.items ?? []).map((item: PurchaseOrderItemDto) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="text-foreground">
+                        {item.productName || item.description || '–'}
+                      </TableCell>
+                      <TableCell className="text-right">{item.requestedQuantity ?? '–'}</TableCell>
+                      <TableCell className="text-foreground">{item.unitOfMeasure || '–'}</TableCell>
+                      <TableCell className="text-right">{formatMoney(item.expectedUnitCost)}</TableCell>
+                      <TableCell className="text-right">
+                        {formatMoney(
+                          item.requestedQuantity != null && item.expectedUnitCost != null
+                            ? item.requestedQuantity * Number(item.expectedUnitCost)
+                            : null
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) resetForm() }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
