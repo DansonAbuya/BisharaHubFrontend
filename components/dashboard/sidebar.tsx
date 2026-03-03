@@ -100,6 +100,12 @@ export function Sidebar({ onClose }: SidebarProps) {
       { label: 'Wishlist', icon: Package, href: '/dashboard/wishlist' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' },
     ],
+    supplier: [
+      // Supplier portal: focus on dispatches and reconciliation with the seller.
+      { label: 'My dispatches', icon: ClipboardList, href: '/dashboard/supplier-dispatches' },
+      { label: 'Browse store', icon: Store, href: '/dashboard/storefront' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' },
+    ],
     super_admin: [
       { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Orders', icon: ShoppingBag, href: '/dashboard/orders' },

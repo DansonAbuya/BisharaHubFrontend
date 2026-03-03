@@ -89,6 +89,34 @@ export async function confirmSupplierDeliveryReceipt(
   return res.json()
 }
 
+export async function listMySupplierDispatches(): Promise<SupplierDeliveryDto[]> {
+  const res = await backendFetch('/supplier-deliveries/my-dispatches')
+  if (!res.ok) return []
+  return res.json()
+}
+
+export async function submitSupplierDispatch(body: {
+  deliveryNoteRef?: string
+  items: { productId: string; quantity: number; unitCost?: number | null }[]
+}): Promise<SupplierDeliveryDto> {
+  const res = await backendFetch('/supplier-deliveries/dispatch', {
+    method: 'POST',
+    body: JSON.stringify({
+      deliveryNoteRef: body.deliveryNoteRef ?? undefined,
+      items: body.items.map((it) => ({
+        productId: it.productId,
+        quantity: it.quantity,
+        unitCost: it.unitCost ?? undefined,
+      })),
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to submit dispatch')
+  }
+  return res.json()
+}
+
 export async function listStockLedger(productId?: string): Promise<StockLedgerEntryDto[]> {
   const qs = productId ? `?productId=${encodeURIComponent(productId)}` : ''
   const res = await backendFetch(`/stock-ledger${qs}`)
