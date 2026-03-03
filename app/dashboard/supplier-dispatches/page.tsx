@@ -8,8 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { PageLoading } from '@/components/layout/page-loading'
 import { useToast } from '@/hooks/use-toast'
 import { listMySupplierDispatches, submitSupplierDispatch } from '@/lib/actions/suppliers'
+import { listMyPurchaseOrdersAsSupplier } from '@/lib/actions/purchaseOrders'
 import { listProducts } from '@/lib/actions/products'
-import type { SupplierDeliveryDto, ProductDto } from '@/lib/api'
+import type { SupplierDeliveryDto, ProductDto, PurchaseOrderDto } from '@/lib/api'
 import { ClipboardList, Plus, Loader2, CheckCircle2 } from 'lucide-react'
 
 export default function SupplierDispatchesPage() {
@@ -18,14 +19,17 @@ export default function SupplierDispatchesPage() {
   const [loading, setLoading] = useState(true)
   const [dispatches, setDispatches] = useState<SupplierDeliveryDto[]>([])
   const [products, setProducts] = useState<ProductDto[]>([])
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderDto[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
+  const [purchaseOrderId, setPurchaseOrderId] = useState('')
   const [deliveryNoteRef, setDeliveryNoteRef] = useState('')
   const [items, setItems] = useState<Array<{ productId: string; quantity: string; unitCost: string }>>([
     { productId: '', quantity: '1', unitCost: '' },
   ])
   const [saving, setSaving] = useState(false)
+  const [loadingPo, setLoadingPo] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -48,6 +52,23 @@ export default function SupplierDispatchesPage() {
     load()
   }, [])
 
+  const loadPurchaseOrders = async () => {
+    setLoadingPo(true)
+    try {
+      const list = await listMyPurchaseOrdersAsSupplier()
+      setPurchaseOrders(list)
+      if (list.length > 0 && !purchaseOrderId) setPurchaseOrderId(list[0].id)
+    } catch {
+      setPurchaseOrders([])
+    } finally {
+      setLoadingPo(false)
+    }
+  }
+
+  useEffect(() => {
+    if (createOpen) loadPurchaseOrders()
+  }, [createOpen])
+
   const handleAddItemRow = () => {
     setItems((prev) => [...prev, { productId: '', quantity: '1', unitCost: '' }])
   }
@@ -58,6 +79,10 @@ export default function SupplierDispatchesPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!purchaseOrderId) {
+      setError('Select a purchase order')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -76,11 +101,13 @@ export default function SupplierDispatchesPage() {
       }
 
       await submitSupplierDispatch({
+        purchaseOrderId,
         deliveryNoteRef: deliveryNoteRef.trim() || undefined,
         items: cleanedItems,
       })
       toast({ title: 'Dispatch submitted', description: 'The seller will see it in Receiving to confirm what was received.' })
       setCreateOpen(false)
+      setPurchaseOrderId('')
       setDeliveryNoteRef('')
       setItems([{ productId: '', quantity: '1', unitCost: '' }])
       await load()
@@ -139,7 +166,9 @@ export default function SupplierDispatchesPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-medium text-foreground truncate">
-                          {d.deliveryNoteRef || 'Dispatch'}{d.deliveredAt ? ` · ${new Date(d.deliveredAt).toLocaleString()}` : ''}
+                          {[d.poNumber && `PO: ${d.poNumber}`, d.deliveryNoteRef || 'Dispatch', d.deliveredAt && new Date(d.deliveredAt).toLocaleString()]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           Status: {d.status}
@@ -196,15 +225,32 @@ export default function SupplierDispatchesPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setDeliveryNoteRef(''); setItems([{ productId: '', quantity: '1', unitCost: '' }]) } }}>
+      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setPurchaseOrderId(''); setDeliveryNoteRef(''); setItems([{ productId: '', quantity: '1', unitCost: '' }]) } }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-foreground">New dispatch</DialogTitle>
             <DialogDescription>
-              Select the seller&apos;s products you are dispatching, with quantities and unit costs. The seller will confirm what was actually received.
+              Choose the purchase order this dispatch fulfills, then add the products and quantities you are sending. The seller will confirm what was received.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleCreate}>
+            <div>
+              <label className="text-sm font-medium text-foreground">Purchase order (required)</label>
+              <select
+                className="w-full h-10 mt-1 px-3 rounded-md border border-border bg-background text-foreground text-sm"
+                value={purchaseOrderId}
+                onChange={(e) => setPurchaseOrderId(e.target.value)}
+                required
+                disabled={loadingPo}
+              >
+                <option value="">{loadingPo ? 'Loading…' : 'Select purchase order'}</option>
+                {purchaseOrders.map((po) => (
+                  <option key={po.id} value={po.id}>
+                    {po.poNumber || `PO ${String(po.id).slice(0, 8)}`}{po.supplierName ? ` · ${po.supplierName}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="text-sm font-medium text-foreground">Delivery note / reference (optional)</label>
               <Input

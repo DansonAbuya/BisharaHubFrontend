@@ -785,6 +785,8 @@ export interface SupplierDeliveryDto {
   businessId: string
   supplierId?: string | null
   supplierName?: string | null
+  purchaseOrderId?: string | null
+  poNumber?: string | null
   deliveryNoteRef?: string | null
   deliveredAt?: string | null
   receivedAt?: string | null

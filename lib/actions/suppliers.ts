@@ -96,12 +96,14 @@ export async function listMySupplierDispatches(): Promise<SupplierDeliveryDto[]>
 }
 
 export async function submitSupplierDispatch(body: {
+  purchaseOrderId: string
   deliveryNoteRef?: string
   items: { productId: string; quantity: number; unitCost?: number | null }[]
 }): Promise<SupplierDeliveryDto> {
   const res = await backendFetch('/supplier-deliveries/dispatch', {
     method: 'POST',
     body: JSON.stringify({
+      purchaseOrderId: body.purchaseOrderId,
       deliveryNoteRef: body.deliveryNoteRef ?? undefined,
       items: body.items.map((it) => ({
         productId: it.productId,
