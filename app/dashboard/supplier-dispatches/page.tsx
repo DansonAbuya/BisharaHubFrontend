@@ -36,13 +36,6 @@ export default function SupplierDispatchesPage() {
     [purchaseOrderId, purchaseOrders],
   )
 
-  // Only PO lines that are linked to a concrete product can be dispatched,
-  // because dispatch items must reference actual products for stock updates.
-  const dispatchablePoItems = useMemo(
-    () => (selectedPurchaseOrder?.items ?? []).filter((item) => item.productId),
-    [selectedPurchaseOrder],
-  )
-
   const totalDispatchCost = useMemo(() => {
     return items.reduce((sum, row) => {
       const qty = parseFloat(row.quantity || '0')
@@ -90,12 +83,12 @@ export default function SupplierDispatchesPage() {
     if (createOpen) loadPurchaseOrders()
   }, [createOpen])
 
-  // When a PO is selected, initialise one row per dispatchable PO item so the supplier can
+  // When a PO is selected, initialise one row per PO item so the supplier can
   // enter dispatched quantities and unit prices against each order line.
   useEffect(() => {
-    if (dispatchablePoItems.length > 0) {
+    if (selectedPurchaseOrder?.items && selectedPurchaseOrder.items.length > 0) {
       setItems(
-        dispatchablePoItems.map((item) => ({
+        selectedPurchaseOrder.items.map((item) => ({
           productId: item.productId || '',
           quantity: item.requestedQuantity != null ? String(item.requestedQuantity) : '',
           unitCost: '',
@@ -116,21 +109,17 @@ export default function SupplierDispatchesPage() {
       setError('Purchase order details could not be loaded')
       return
     }
-    if (dispatchablePoItems.length === 0) {
-      setError('This purchase order has no product-backed items to dispatch. Ask the seller to create a PO with products.')
-      return
-    }
 
     setSaving(true)
     setError(null)
     try {
-      const cleanedItems = dispatchablePoItems
+      const cleanedItems = (selectedPurchaseOrder.items ?? [])
         .map((poItem, index) => {
-          const row = items[index] || { quantity: '0', unitCost: '' }
+          const row = items[index] || { productId: poItem.productId || '', quantity: '0', unitCost: '' }
           const qty = parseInt(row.quantity, 10)
           const unitCost = row.unitCost.trim() ? Number(row.unitCost) : null
           return {
-            productId: poItem.productId || null,
+            productId: row.productId || null,
             quantity: qty,
             unitCost,
           }
@@ -344,20 +333,35 @@ export default function SupplierDispatchesPage() {
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">Dispatch against order lines</p>
               <p className="text-xs text-muted-foreground">
-                For each item in the purchase order, enter the quantity you are dispatching and the agreed unit price.
+                For each item in the purchase order, choose the product (if needed), enter the quantity you are dispatching and the agreed unit price.
               </p>
               <div className="space-y-2">
                 {(selectedPurchaseOrder?.items ?? []).map((poItem, index) => {
-                  const row = items[index] || { quantity: '', unitCost: '' }
+                  const row = items[index] || { productId: poItem.productId || '', quantity: '', unitCost: '' }
                   return (
-                    <div key={poItem.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
-                      <div className="text-xs text-left">
+                    <div key={poItem.id} className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-center">
+                      <div className="text-xs text-left sm:col-span-2">
                         <div className="font-medium text-foreground truncate">
                           {poItem.productName || poItem.description || '—'}
                         </div>
                         <div className="text-[11px] text-muted-foreground">
                           Requested: {poItem.requestedQuantity ?? '—'} {poItem.unitOfMeasure || ''}
                         </div>
+                        <select
+                          className="mt-1 h-8 px-2 rounded-md border border-border bg-background text-foreground text-[11px] w-full"
+                          value={row.productId}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setItems((prev) => prev.map((r, i) => (i === index ? { ...r, productId: v } : r)))
+                          }}
+                        >
+                          <option value="">{poItem.productId ? 'Linked product (optional override)' : 'Select product'}</option>
+                          {products.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <Input
                         type="number"
