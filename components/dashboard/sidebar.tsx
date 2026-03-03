@@ -143,7 +143,21 @@ export function Sidebar({ onClose }: SidebarProps) {
   const items = user ? (menuItems[user.role as keyof typeof menuItems] ?? menuItems.customer) : []
 
   const operationsItems = items.filter((item) =>
-    ['/dashboard', '/dashboard/orders', '/dashboard/products', '/dashboard/services', '/dashboard/shipments', '/dashboard/courier', '/dashboard/appointments', '/dashboard/schedule', '/dashboard/availability'].includes(item.href),
+    [
+      '/dashboard',
+      '/dashboard/orders',
+      '/dashboard/products',
+      '/dashboard/services',
+      '/dashboard/shipments',
+      '/dashboard/courier',
+      '/dashboard/appointments',
+      '/dashboard/schedule',
+      '/dashboard/availability',
+      // Owner/staff logistics
+      '/dashboard/suppliers',
+      '/dashboard/deliveries',
+      '/dashboard/stock-ledger',
+    ].includes(item.href),
   )
   const analyticsItems = items.filter((item) =>
     ['/dashboard/analytics', '/dashboard/expenses', '/dashboard/accounting', '/dashboard/reconciliation', '/dashboard/staff', '/dashboard/couriers'].includes(item.href),
