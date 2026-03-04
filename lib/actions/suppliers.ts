@@ -89,6 +89,15 @@ export async function confirmSupplierDeliveryReceipt(
   return res.json()
 }
 
+export async function addDeliveryToStock(deliveryId: string): Promise<SupplierDeliveryDto> {
+  const res = await backendFetch(`/supplier-deliveries/${deliveryId}/add-to-stock`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to add delivery to stock')
+  }
+  return res.json()
+}
+
 export async function listMySupplierDispatches(): Promise<SupplierDeliveryDto[]> {
   const res = await backendFetch('/supplier-deliveries/my-dispatches')
   if (!res.ok) return []
