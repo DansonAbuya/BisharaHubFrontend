@@ -59,6 +59,9 @@ export default function DeliveriesPage() {
   const [convertSourceQty, setConvertSourceQty] = useState('')
   const [converting, setConverting] = useState(false)
 
+  // Dialog when receipt is blocked because products still have stock from a previous dispatch
+  const [existingStockMessage, setExistingStockMessage] = useState<string | null>(null)
+
   const load = async () => {
     setLoading(true)
     setError(null)
@@ -186,10 +189,18 @@ export default function DeliveriesPage() {
       }
       const updated = await confirmSupplierDeliveryReceipt(selectedId, overrides)
       setSelected(updated)
-      toast({ title: 'Receipt confirmed', description: 'Stock was updated from this delivery.' })
+      toast({
+        title: 'Receipt confirmed',
+        description: 'Stock updated. Set selling prices for this dispatch (e.g. "Set price from cost" below) if they differ from the previous supply.',
+      })
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to confirm receipt')
+      const msg = e instanceof Error ? e.message : 'Failed to confirm receipt'
+      if (msg.includes('dispatch whose products are still on sale') || msg.includes('still have stock')) {
+        setExistingStockMessage(msg)
+      } else {
+        setError(msg)
+      }
     } finally {
       setConfirming(false)
     }
@@ -561,13 +572,18 @@ export default function DeliveriesPage() {
                             </Button>
                           )}
                           {canReceive && (selected.items ?? []).length > 0 && (
-                            <Button
-                              className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                              onClick={handleConfirmReceipt}
-                              disabled={confirming}
-                            >
-                              {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm receipt & update stock'}
-                            </Button>
+                            <>
+                              <p className="text-xs text-muted-foreground">
+                                Stock is per dispatch—do not mix. If there is a dispatch whose products are still on sale, sell or clear that stock first, then confirm receipt and set prices for this dispatch.
+                              </p>
+                              <Button
+                                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                                onClick={handleConfirmReceipt}
+                                disabled={confirming}
+                              >
+                                {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm receipt & update stock'}
+                              </Button>
+                            </>
                           )}
                         </div>
                         {!canReceive && selected.status !== 'RECEIVED' && (
@@ -645,6 +661,24 @@ export default function DeliveriesPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shown when receipt is blocked because products still have stock from a previous dispatch */}
+      <Dialog open={!!existingStockMessage} onOpenChange={(open) => { if (!open) setExistingStockMessage(null) }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Dispatch still on sale</DialogTitle>
+            <DialogDescription asChild>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{existingStockMessage ?? ''}</p>
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            There is a dispatch whose products are still on sale. Stock is kept per dispatch—do not mix. Sell or adjust that stock to zero in Products or Inventory, then you can receive this dispatch.
+          </p>
+          <div className="flex justify-end pt-2">
+            <Button variant="outline" onClick={() => setExistingStockMessage(null)}>Close</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
