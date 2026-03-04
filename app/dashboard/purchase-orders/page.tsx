@@ -63,7 +63,6 @@ export default function PurchaseOrdersPage() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [supplierId, setSupplierId] = useState('')
-  const [poNumber, setPoNumber] = useState('')
   const [deliveryNoteRef, setDeliveryNoteRef] = useState('')
   const [expectedDate, setExpectedDate] = useState('')
   const [items, setItems] = useState<Array<{ productId: string; description: string; unitOfMeasure: string; requestedQuantity: string; expectedUnitCost: string; customerName: string; customerPrice: string }>>([
@@ -112,7 +111,6 @@ export default function PurchaseOrdersPage() {
 
   const resetForm = () => {
     setSupplierId('')
-    setPoNumber('')
     setDeliveryNoteRef('')
     setExpectedDate('')
     setItems([{ productId: '', description: '', unitOfMeasure: '', requestedQuantity: '1', expectedUnitCost: '', customerName: '', customerPrice: '' }])
@@ -160,7 +158,6 @@ export default function PurchaseOrdersPage() {
 
       await createPurchaseOrder({
         supplierId,
-        poNumber: poNumber.trim() || undefined,
         deliveryNoteRef: deliveryNoteRef.trim() || undefined,
         expectedDeliveryDate: expectedDate ? new Date(expectedDate).toISOString() : undefined,
         items: cleanedItems,
@@ -381,10 +378,6 @@ export default function PurchaseOrdersPage() {
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">PO number (optional)</label>
-                <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} className="mt-1 h-10" />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground">Delivery note / reference (optional)</label>
