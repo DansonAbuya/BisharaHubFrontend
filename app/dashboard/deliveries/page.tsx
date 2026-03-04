@@ -15,6 +15,7 @@ import {
   listSupplierDeliveries,
   listSuppliers,
   confirmSupplierDeliveryReceipt,
+  convertDeliveryItem,
 } from '@/lib/actions/suppliers'
 import { listProducts, setPriceFromCost } from '@/lib/actions/products'
 import type { SupplierDeliveryDto, SupplierDto, ProductDto } from '@/lib/api'
@@ -49,6 +50,15 @@ export default function DeliveriesPage() {
   const [receivedByItem, setReceivedByItem] = useState<Record<string, string>>({})
   const [settingPriceProductId, setSettingPriceProductId] = useState<string | null>(null)
   const [marginPercent, setMarginPercent] = useState<string>('20')
+
+  // Conversion (subdivide received stock into sale units)
+  const [convertOpen, setConvertOpen] = useState(false)
+  const [convertItemId, setConvertItemId] = useState<string | null>(null)
+  const [convertName, setConvertName] = useState('')
+  const [convertPrice, setConvertPrice] = useState('')
+  const [convertProducedQty, setConvertProducedQty] = useState('')
+  const [convertSourceQty, setConvertSourceQty] = useState('')
+  const [converting, setConverting] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -206,6 +216,56 @@ export default function DeliveriesPage() {
       setError(e instanceof Error ? e.message : 'Failed to set price')
     } finally {
       setSettingPriceProductId(null)
+    }
+  }
+
+  const startConvert = (item: SupplierDeliveryDto['items'][number]) => {
+    if (!selected) return
+    setConvertItemId(item.id)
+    const baseQty = item.receivedQuantity ?? item.quantity ?? 0
+    setConvertName(item.productName || selected.supplierName || '')
+    setConvertPrice('')
+    setConvertProducedQty(baseQty > 0 ? String(baseQty) : '1')
+    setConvertSourceQty(baseQty > 0 ? String(baseQty) : '1')
+    setConvertOpen(true)
+  }
+
+  const handleConvertSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedId || !convertItemId) return
+    const produced = parseInt(convertProducedQty, 10)
+    const sourceUsed = convertSourceQty.trim() ? parseInt(convertSourceQty, 10) : undefined
+    const price = convertPrice.trim() ? Number(convertPrice) : NaN
+    if (!convertName.trim()) {
+      setError('Enter a name for the sale product')
+      return
+    }
+    if (Number.isNaN(price) || price <= 0) {
+      setError('Enter a valid customer price')
+      return
+    }
+    if (Number.isNaN(produced) || produced <= 0) {
+      setError('Enter a valid produced quantity')
+      return
+    }
+    setConverting(true)
+    setError(null)
+    try {
+      const updated = await convertDeliveryItem(selectedId, convertItemId, {
+        targetName: convertName.trim(),
+        targetPrice: price,
+        producedQuantity: produced,
+        sourceQuantityUsed: sourceUsed,
+      })
+      setSelected(updated)
+      toast({ title: 'Conversion recorded', description: 'Stock was moved into the new sale units.' })
+      await load()
+      setConvertOpen(false)
+      setConvertItemId(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to convert item')
+    } finally {
+      setConverting(false)
     }
   }
 
@@ -434,6 +494,18 @@ export default function DeliveriesPage() {
                                     />
                                   </div>
                                 )}
+                                {canReceive && selected.status === 'RECEIVED' && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="xs"
+                                      onClick={() => startConvert(it)}
+                                    >
+                                      Subdivide into sale units
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                               {canReceive && it.unitCost != null && it.unitCost > 0 && (
                                 <Button
@@ -519,6 +591,83 @@ export default function DeliveriesPage() {
               </Card>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Conversion dialog: subdivide received stock into sale units */}
+      <Dialog open={convertOpen} onOpenChange={(o) => { setConvertOpen(o); if (!o) { setConvertItemId(null) } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Subdivide into sale units</DialogTitle>
+            <DialogDescription>
+              Create smaller units of sale from the received stock. This will reduce the bulk stock and increase stock on the new sale product.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-3" onSubmit={handleConvertSubmit}>
+            <div>
+              <label className="text-sm font-medium text-foreground">Sale product name</label>
+              <Input
+                value={convertName}
+                onChange={(e) => setConvertName(e.target.value)}
+                className="mt-1 h-9"
+                placeholder="Customer-facing name e.g. Tilapia fillet 500g"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground">Customer price per unit</label>
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                value={convertPrice}
+                onChange={(e) => setConvertPrice(e.target.value)}
+                className="mt-1 h-9"
+                placeholder="e.g. 450"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-foreground">Units to create</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={convertProducedQty}
+                  onChange={(e) => setConvertProducedQty(e.target.value)}
+                  className="mt-1 h-9"
+                  placeholder="e.g. 10"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Source qty to consume</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={convertSourceQty}
+                  onChange={(e) => setConvertSourceQty(e.target.value)}
+                  className="mt-1 h-9"
+                  placeholder="Defaults to received qty"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => setConvertOpen(false)}
+                disabled={converting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+                disabled={converting}
+              >
+                {converting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save conversion'}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
