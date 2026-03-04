@@ -127,10 +127,9 @@ export default function SupplierDispatchesPage() {
         })
         .filter(
           (row) =>
-            row.productId &&
             !Number.isNaN(row.quantity) &&
             row.quantity > 0,
-        ) as { productId: string; quantity: number; unitCost?: number | null }[]
+        ) as { productId: string | null; quantity: number; unitCost?: number | null }[]
 
       if (cleanedItems.length === 0) {
         setError('Add at least one valid line item')
