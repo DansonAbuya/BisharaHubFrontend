@@ -119,6 +119,36 @@ export async function submitSupplierDispatch(body: {
   return res.json()
 }
 
+export async function convertDeliveryItem(
+  deliveryId: string,
+  itemId: string,
+  body: {
+    targetProductId?: string | null
+    targetName?: string | null
+    targetPrice?: number | null
+    producedQuantity: number
+    sourceQuantityUsed?: number | null
+    note?: string | null
+  },
+): Promise<SupplierDeliveryDto> {
+  const res = await backendFetch(`/supplier-deliveries/${deliveryId}/items/${itemId}/convert`, {
+    method: 'POST',
+    body: JSON.stringify({
+      targetProductId: body.targetProductId ?? undefined,
+      targetName: body.targetName ?? undefined,
+      targetPrice: body.targetPrice ?? undefined,
+      producedQuantity: body.producedQuantity,
+      sourceQuantityUsed: body.sourceQuantityUsed ?? undefined,
+      note: body.note ?? undefined,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to convert item')
+  }
+  return res.json()
+}
+
 export async function listStockLedger(productId?: string): Promise<StockLedgerEntryDto[]> {
   const qs = productId ? `?productId=${encodeURIComponent(productId)}` : ''
   const res = await backendFetch(`/stock-ledger${qs}`)
