@@ -793,6 +793,8 @@ export interface SupplierDeliveryDto {
   receivedByUserId?: string | null
   receivedByName?: string | null
   status: 'DRAFT' | 'RECEIVED' | string
+  /** When set, received quantities from this delivery have been added to product stock. */
+  stockUpdatedAt?: string | null
   createdAt?: string
   items?: SupplierDeliveryItemDto[]
   totalQuantity?: number | null
