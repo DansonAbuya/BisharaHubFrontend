@@ -23,6 +23,7 @@ export default function SuppliersPage() {
   const [email, setEmail] = useState('')
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   const load = async () => {
@@ -83,8 +84,9 @@ export default function SuppliersPage() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this supplier?')) return
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return
+    const id = confirmDeleteId
     setDeletingId(id)
     setError(null)
     try {
@@ -95,6 +97,7 @@ export default function SuppliersPage() {
       setError(err instanceof Error ? err.message : 'Failed to delete supplier')
     } finally {
       setDeletingId(null)
+      setConfirmDeleteId(null)
     }
   }
 
@@ -151,7 +154,7 @@ export default function SuppliersPage() {
                     variant="outline"
                     size="sm"
                     className="text-destructive gap-1"
-                    onClick={() => handleDelete(s.id)}
+                    onClick={() => setConfirmDeleteId(s.id)}
                     disabled={deletingId === s.id}
                   >
                     {deletingId === s.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -204,6 +207,36 @@ export default function SuppliersPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!confirmDeleteId} onOpenChange={(o) => { if (!o) setConfirmDeleteId(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Delete supplier</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this supplier? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => setConfirmDeleteId(null)}
+              disabled={deletingId === confirmDeleteId}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              onClick={handleDelete}
+              disabled={deletingId === confirmDeleteId}
+            >
+              {deletingId === confirmDeleteId ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -55,8 +55,7 @@ export default function DeliveriesPage() {
   const [convertOpen, setConvertOpen] = useState(false)
   const [convertItemId, setConvertItemId] = useState<string | null>(null)
   const [convertName, setConvertName] = useState('')
-  const [convertPrice, setConvertPrice] = useState('')
-  const [convertProducedQty, setConvertProducedQty] = useState('')
+  const [convertPiecesPerUnit, setConvertPiecesPerUnit] = useState('')
   const [convertSourceQty, setConvertSourceQty] = useState('')
   const [converting, setConverting] = useState(false)
 
@@ -164,7 +163,6 @@ export default function DeliveriesPage() {
 
   const handleConfirmReceipt = async () => {
     if (!selectedId) return
-    if (!confirm('Confirm receipt from supplier? Quantities will be added to stock.')) return
     setConfirming(true)
     setError(null)
     try {
@@ -224,8 +222,7 @@ export default function DeliveriesPage() {
     setConvertItemId(item.id)
     const baseQty = item.receivedQuantity ?? item.quantity ?? 0
     setConvertName(item.productName || selected.supplierName || '')
-    setConvertPrice('')
-    setConvertProducedQty(baseQty > 0 ? String(baseQty) : '1')
+    setConvertPiecesPerUnit('1')
     setConvertSourceQty(baseQty > 0 ? String(baseQty) : '1')
     setConvertOpen(true)
   }
@@ -233,19 +230,14 @@ export default function DeliveriesPage() {
   const handleConvertSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedId || !convertItemId) return
-    const produced = parseInt(convertProducedQty, 10)
     const sourceUsed = convertSourceQty.trim() ? parseInt(convertSourceQty, 10) : undefined
-    const price = convertPrice.trim() ? Number(convertPrice) : NaN
+    const piecesPerUnit = convertPiecesPerUnit.trim() ? parseInt(convertPiecesPerUnit, 10) : NaN
     if (!convertName.trim()) {
       setError('Enter a name for the sale product')
       return
     }
-    if (Number.isNaN(price) || price <= 0) {
-      setError('Enter a valid customer price')
-      return
-    }
-    if (Number.isNaN(produced) || produced <= 0) {
-      setError('Enter a valid produced quantity')
+    if (Number.isNaN(piecesPerUnit) || piecesPerUnit <= 0) {
+      setError('Enter how many sale pieces you get from one source unit')
       return
     }
     setConverting(true)
@@ -253,8 +245,7 @@ export default function DeliveriesPage() {
     try {
       const updated = await convertDeliveryItem(selectedId, convertItemId, {
         targetName: convertName.trim(),
-        targetPrice: price,
-        producedQuantity: produced,
+        piecesPerUnit,
         sourceQuantityUsed: sourceUsed,
       })
       setSelected(updated)
@@ -614,40 +605,26 @@ export default function DeliveriesPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-foreground">Customer price per unit</label>
+              <label className="text-sm font-medium text-foreground">Pieces per original unit</label>
               <Input
                 type="number"
-                min={0}
-                step={0.01}
-                value={convertPrice}
-                onChange={(e) => setConvertPrice(e.target.value)}
+                min={1}
+                value={convertPiecesPerUnit}
+                onChange={(e) => setConvertPiecesPerUnit(e.target.value)}
                 className="mt-1 h-9"
-                placeholder="e.g. 450"
+                placeholder="e.g. 3 (fillets per whole fish)"
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium text-foreground">Units to create</label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={convertProducedQty}
-                  onChange={(e) => setConvertProducedQty(e.target.value)}
-                  className="mt-1 h-9"
-                  placeholder="e.g. 10"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Source qty to consume</label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={convertSourceQty}
-                  onChange={(e) => setConvertSourceQty(e.target.value)}
-                  className="mt-1 h-9"
-                  placeholder="Defaults to received qty"
-                />
-              </div>
+            <div>
+              <label className="text-sm font-medium text-foreground">Source qty to consume (optional)</label>
+              <Input
+                type="number"
+                min={1}
+                value={convertSourceQty}
+                onChange={(e) => setConvertSourceQty(e.target.value)}
+                className="mt-1 h-9"
+                placeholder="Defaults to received qty"
+              />
             </div>
             <div className="flex gap-2 pt-2">
               <Button

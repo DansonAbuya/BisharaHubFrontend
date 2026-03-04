@@ -36,6 +36,7 @@ export default function ProductsPage() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<ProductDto | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [formSubmitting, setFormSubmitting] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
@@ -186,8 +187,9 @@ export default function ProductsPage() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this product?')) return
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return
+    const id = confirmDeleteId
     setDeletingId(id)
     setError(null)
     try {
@@ -197,11 +199,11 @@ export default function ProductsPage() {
       setError(err instanceof Error ? err.message : 'Failed to delete product')
     } finally {
       setDeletingId(null)
+      setConfirmDeleteId(null)
     }
   }
 
   const handleApprove = async (id: string) => {
-    if (!confirm('Mark this product as ready for sale? It will become visible to customers.')) return
     setApprovingId(id)
     setError(null)
     try {
@@ -401,7 +403,7 @@ export default function ProductsPage() {
                               variant="ghost"
                               size="sm"
                               className="text-destructive h-8 px-2"
-                              onClick={() => handleDelete(product.id)}
+                              onClick={() => setConfirmDeleteId(product.id)}
                               disabled={deletingId === product.id}
                             >
                               {deletingId === product.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -420,124 +422,156 @@ export default function ProductsPage() {
       )}
 
       {canManage && (
-        <Dialog open={isAddOpen} onOpenChange={(open) => { if (!open) { setIsAddOpen(false); resetForm(); } }}>
-          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-foreground">{editingProduct ? 'Edit Product' : 'Add New Product'}</DialogTitle>
-              <DialogDescription>Add or update a product in your inventory</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-foreground">Product Name</label>
-                <Input
-                  placeholder="Enter product name"
-                  className="mt-1 h-10 text-sm"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Category</label>
-                <select
-                  className="w-full h-10 mt-1 px-3 rounded-md border border-border bg-background text-foreground text-sm"
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
-                >
-                  <option value="">Select category</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Description</label>
-                <textarea
-                  placeholder="Enter product description"
-                  className="w-full mt-1 p-3 rounded-md border border-border bg-background text-foreground text-sm"
-                  rows={3}
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Product Image(s)</label>
-                <div className="mt-1 flex items-center gap-2">
+        <>
+          <Dialog open={isAddOpen} onOpenChange={(open) => { if (!open) { setIsAddOpen(false); resetForm(); } }}>
+            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-foreground">{editingProduct ? 'Edit Product' : 'Add New Product'}</DialogTitle>
+                <DialogDescription>Add or update a product in your inventory</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground">Product Name</label>
                   <Input
-                    type="file"
-                    accept="image/*"
-                    className="h-10 text-sm flex-1"
-                    onChange={handleImageUpload}
-                    disabled={uploadingImage}
+                    placeholder="Enter product name"
+                    className="mt-1 h-10 text-sm"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    required
                   />
-                  {uploadingImage && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">JPG, PNG, WebP. Max 20MB. Upload then add product.</p>
-                {formImages.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {formImages.map((url) => (
-                      <div key={url} className="relative group">
-                        <div className="w-16 h-16 rounded border border-border overflow-hidden bg-muted">
-                          <Image src={url} alt="" width={64} height={64} className="object-cover w-full h-full" unoptimized />
-                        </div>
-                        <button
-                          type="button"
-                          className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center opacity-0 group-hover:opacity-100"
-                          onClick={() => removeFormImage(url)}
-                        >
-                          ×
-                        </button>
-                        {formMainImage === url && (
-                          <span className="absolute bottom-0 left-0 right-0 bg-primary/80 text-primary-foreground text-[10px] text-center">Main</span>
-                        )}
-                      </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground">Category</label>
+                  <select
+                    className="w-full h-10 mt-1 px-3 rounded-md border border-border bg-background text-foreground text-sm"
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value)}
+                  >
+                    <option value="">Select category</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
                     ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground">Description</label>
+                  <textarea
+                    placeholder="Enter product description"
+                    className="w-full mt-1 p-3 rounded-md border border-border bg-background text-foreground text-sm"
+                    rows={3}
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground">Product Image(s)</label>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      className="h-10 text-sm flex-1"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage}
+                    />
+                    {uploadingImage && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
                   </div>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-foreground">Price (KES)</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    placeholder="Price"
-                    className="mt-1 h-10 text-sm"
-                    value={formPrice}
-                    onChange={(e) => setFormPrice(e.target.value)}
-                    required
-                  />
+                  <p className="text-xs text-muted-foreground mt-1">JPG, PNG, WebP. Max 20MB. Upload then add product.</p>
+                  {formImages.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {formImages.map((url) => (
+                        <div key={url} className="relative group">
+                          <div className="w-16 h-16 rounded border border-border overflow-hidden bg-muted">
+                            <Image src={url} alt="" width={64} height={64} className="object-cover w-full h-full" unoptimized />
+                          </div>
+                          <button
+                            type="button"
+                            className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center opacity-0 group-hover:opacity-100"
+                            onClick={() => removeFormImage(url)}
+                          >
+                            ×
+                          </button>
+                          {formMainImage === url && (
+                            <span className="absolute bottom-0 left-0 right-0 bg-primary/80 text-primary-foreground text-[10px] text-center">Main</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-foreground">Quantity</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    placeholder="Qty"
-                    className="mt-1 h-10 text-sm"
-                    value={formQuantity}
-                    onChange={(e) => setFormQuantity(e.target.value)}
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Price (KES)</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      placeholder="Price"
+                      className="mt-1 h-10 text-sm"
+                      value={formPrice}
+                      onChange={(e) => setFormPrice(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Quantity</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="Qty"
+                      className="mt-1 h-10 text-sm"
+                      value={formQuantity}
+                      onChange={(e) => setFormQuantity(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2 pt-4">
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 bg-transparent text-sm"
+                    onClick={() => { setIsAddOpen(false); resetForm(); }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground text-sm" disabled={formSubmitting}>
+                    {formSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingProduct ? 'Update' : 'Add') + ' Product'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={!!confirmDeleteId} onOpenChange={(o) => { if (!o) setConfirmDeleteId(null) }}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-foreground">Delete product</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete this product? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-2 pt-2">
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1 bg-transparent text-sm"
-                  onClick={() => { setIsAddOpen(false); resetForm(); }}
+                  className="flex-1"
+                  onClick={() => setConfirmDeleteId(null)}
+                  disabled={deletingId === confirmDeleteId}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground text-sm" disabled={formSubmitting}>
-                  {formSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingProduct ? 'Update' : 'Add') + ' Product'}
+                <Button
+                  type="button"
+                  className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                  onClick={handleDelete}
+                  disabled={deletingId === confirmDeleteId}
+                >
+                  {deletingId === confirmDeleteId ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
                 </Button>
               </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </>
       )}
     </div>
   )

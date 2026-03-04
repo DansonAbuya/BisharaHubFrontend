@@ -354,11 +354,10 @@ export default function ServicesPage() {
       return
     }
     
+    // For large videos, just show a warning via error state instead of a native confirm,
+    // but still allow upload to proceed.
     if (fileSizeMB > warnSizeMB && file.type.startsWith('video/')) {
-      const proceed = window.confirm(
-        `This video is ${fileSizeMB.toFixed(1)}MB. For best results, we recommend videos under 15MB (about 30 sec - 1 min).\n\nContinue uploading?`
-      )
-      if (!proceed) return
+      setError(`Warning: this video is ${fileSizeMB.toFixed(1)}MB. For best results, we recommend videos under 15MB.`)
     }
     
     setUploading(true)

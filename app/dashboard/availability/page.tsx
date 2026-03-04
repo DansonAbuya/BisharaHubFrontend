@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Clock, Save, Plus, Trash2 } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 const DAYS_OF_WEEK = [
   { id: 'monday', label: 'Monday' },
@@ -41,6 +42,7 @@ const DEFAULT_AVAILABILITY: WeekAvailability = {
 
 export default function AvailabilityPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [availability, setAvailability] = useState<WeekAvailability>(DEFAULT_AVAILABILITY)
   const [saving, setSaving] = useState(false)
 
@@ -92,10 +94,10 @@ export default function AvailabilityPage() {
     try {
       // TODO: Save availability to backend
       await new Promise(resolve => setTimeout(resolve, 1000))
-      alert('Availability saved successfully!')
+      toast({ title: 'Availability saved', description: 'Your working hours have been updated.' })
     } catch (err) {
       console.error('Failed to save availability:', err)
-      alert('Failed to save availability. Please try again.')
+      toast({ title: 'Failed to save availability', description: 'Please try again.', variant: 'destructive' })
     } finally {
       setSaving(false)
     }
