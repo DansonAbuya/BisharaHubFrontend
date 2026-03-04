@@ -381,7 +381,6 @@ function CourierRow({
   }
 
   const handleDelete = async () => {
-    if (!confirm(`Delete "${courier.name}"? This cannot be undone.`)) return
     setActingId(courier.courierId)
     onError(null)
     try {

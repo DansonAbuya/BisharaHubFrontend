@@ -36,6 +36,7 @@ export default function ProductsPage() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<ProductDto | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [formSubmitting, setFormSubmitting] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
@@ -186,8 +187,9 @@ export default function ProductsPage() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this product?')) return
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return
+    const id = confirmDeleteId
     setDeletingId(id)
     setError(null)
     try {
@@ -197,11 +199,11 @@ export default function ProductsPage() {
       setError(err instanceof Error ? err.message : 'Failed to delete product')
     } finally {
       setDeletingId(null)
+      setConfirmDeleteId(null)
     }
   }
 
   const handleApprove = async (id: string) => {
-    if (!confirm('Mark this product as ready for sale? It will become visible to customers.')) return
     setApprovingId(id)
     setError(null)
     try {
@@ -401,7 +403,7 @@ export default function ProductsPage() {
                               variant="ghost"
                               size="sm"
                               className="text-destructive h-8 px-2"
-                              onClick={() => handleDelete(product.id)}
+                              onClick={() => setConfirmDeleteId(product.id)}
                               disabled={deletingId === product.id}
                             >
                               {deletingId === product.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -538,6 +540,36 @@ export default function ProductsPage() {
             </form>
           </DialogContent>
         </Dialog>
+
+      <Dialog open={!!confirmDeleteId} onOpenChange={(o) => { if (!o) setConfirmDeleteId(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Delete product</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this product? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => setConfirmDeleteId(null)}
+              disabled={deletingId === confirmDeleteId}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              onClick={handleDelete}
+              disabled={deletingId === confirmDeleteId}
+            >
+              {deletingId === confirmDeleteId ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       )}
     </div>
   )
