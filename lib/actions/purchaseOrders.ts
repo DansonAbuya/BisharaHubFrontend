@@ -29,6 +29,8 @@ export async function createPurchaseOrder(body: {
     unitOfMeasure?: string | null
     requestedQuantity: number
     expectedUnitCost?: number | null
+    customerName?: string | null
+    customerPrice?: number | null
   }[]
 }): Promise<PurchaseOrderDto> {
   const res = await backendFetch('/purchase-orders', {
@@ -44,6 +46,8 @@ export async function createPurchaseOrder(body: {
         unitOfMeasure: it.unitOfMeasure ?? undefined,
         requestedQuantity: it.requestedQuantity,
         expectedUnitCost: it.expectedUnitCost ?? undefined,
+        customerName: it.customerName ?? undefined,
+        customerPrice: it.customerPrice ?? undefined,
       })),
     }),
   })
