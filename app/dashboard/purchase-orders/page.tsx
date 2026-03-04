@@ -66,8 +66,8 @@ export default function PurchaseOrdersPage() {
   const [poNumber, setPoNumber] = useState('')
   const [deliveryNoteRef, setDeliveryNoteRef] = useState('')
   const [expectedDate, setExpectedDate] = useState('')
-  const [items, setItems] = useState<Array<{ productId: string; description: string; unitOfMeasure: string; requestedQuantity: string; expectedUnitCost: string }>>([
-    { productId: '', description: '', unitOfMeasure: '', requestedQuantity: '1', expectedUnitCost: '' },
+  const [items, setItems] = useState<Array<{ productId: string; description: string; unitOfMeasure: string; requestedQuantity: string; expectedUnitCost: string; customerName: string; customerPrice: string }>>([
+    { productId: '', description: '', unitOfMeasure: '', requestedQuantity: '1', expectedUnitCost: '', customerName: '', customerPrice: '' },
   ])
   const [saving, setSaving] = useState(false)
 
@@ -115,11 +115,11 @@ export default function PurchaseOrdersPage() {
     setPoNumber('')
     setDeliveryNoteRef('')
     setExpectedDate('')
-    setItems([{ productId: '', description: '', unitOfMeasure: '', requestedQuantity: '1', expectedUnitCost: '' }])
+    setItems([{ productId: '', description: '', unitOfMeasure: '', requestedQuantity: '1', expectedUnitCost: '', customerName: '', customerPrice: '' }])
   }
 
   const handleAddItemRow = () => {
-    setItems((prev) => [...prev, { productId: '', description: '', unitOfMeasure: '', requestedQuantity: '1', expectedUnitCost: '' }])
+    setItems((prev) => [...prev, { productId: '', description: '', unitOfMeasure: '', requestedQuantity: '1', expectedUnitCost: '', customerName: '', customerPrice: '' }])
   }
 
   const handleRemoveItemRow = (index: number) => {
@@ -139,12 +139,15 @@ export default function PurchaseOrdersPage() {
         .map((row) => {
           const rq = parseInt(row.requestedQuantity, 10)
           const expectedCost = row.expectedUnitCost.trim() ? Number(row.expectedUnitCost) : null
+          const customerPrice = row.customerPrice.trim() ? Number(row.customerPrice) : null
           return {
             productId: row.productId || null,
             description: row.description.trim() || null,
             unitOfMeasure: row.unitOfMeasure.trim() || null,
             requestedQuantity: rq,
             expectedUnitCost: expectedCost,
+            customerName: row.customerName.trim() || null,
+            customerPrice,
           }
         })
         .filter((row) => !Number.isNaN(row.requestedQuantity) && row.requestedQuantity > 0)
