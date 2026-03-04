@@ -15,6 +15,7 @@ import {
   listSupplierDeliveries,
   listSuppliers,
   confirmSupplierDeliveryReceipt,
+  addDeliveryToStock,
   convertDeliveryItem,
 } from '@/lib/actions/suppliers'
 import { listProducts, setPriceFromCost } from '@/lib/actions/products'
@@ -47,6 +48,7 @@ export default function DeliveriesPage() {
   const [addCost, setAddCost] = useState<string>('')
   const [addingItem, setAddingItem] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [addingToStock, setAddingToStock] = useState(false)
   const [receivedByItem, setReceivedByItem] = useState<Record<string, string>>({})
   const [settingPriceProductId, setSettingPriceProductId] = useState<string | null>(null)
   const [marginPercent, setMarginPercent] = useState<string>('20')
@@ -191,7 +193,7 @@ export default function DeliveriesPage() {
       setSelected(updated)
       toast({
         title: 'Receipt confirmed',
-        description: 'Stock updated. Set selling prices for this dispatch (e.g. "Set price from cost" below) if they differ from the previous supply.',
+        description: 'Goods received. Add to stock when the previous dispatch is sold out (do not mix dispatches).',
       })
       await load()
     } catch (e) {
@@ -203,6 +205,27 @@ export default function DeliveriesPage() {
       }
     } finally {
       setConfirming(false)
+    }
+  }
+
+  const handleAddToStock = async () => {
+    if (!selectedId) return
+    setAddingToStock(true)
+    setError(null)
+    try {
+      const updated = await addDeliveryToStock(selectedId)
+      setSelected(updated)
+      toast({ title: 'Stock updated', description: 'Quantities from this delivery have been added to product stock. Set prices if they differ from the previous supply.' })
+      await load()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to add to stock'
+      if (msg.includes('dispatch whose products are still on sale') || msg.includes('still have stock')) {
+        setExistingStockMessage(msg)
+      } else {
+        setError(msg)
+      }
+    } finally {
+      setAddingToStock(false)
     }
   }
 
@@ -574,14 +597,14 @@ export default function DeliveriesPage() {
                           {canReceive && (selected.items ?? []).length > 0 && (
                             <>
                               <p className="text-xs text-muted-foreground">
-                                Stock is per dispatch—do not mix. If there is a dispatch whose products are still on sale, sell or clear that stock first, then confirm receipt and set prices for this dispatch.
+                                Confirm that you received the goods. Stock will not be updated until you click Add to stock (after the previous dispatch is sold out).
                               </p>
                               <Button
                                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
                                 onClick={handleConfirmReceipt}
                                 disabled={confirming}
                               >
-                                {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm receipt & update stock'}
+                                {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm receipt'}
                               </Button>
                             </>
                           )}
@@ -590,6 +613,29 @@ export default function DeliveriesPage() {
                           <p className="text-xs text-muted-foreground">
                             Only the business owner or staff can confirm receipt.
                           </p>
+                        )}
+                      </div>
+                    )}
+
+                    {selected.status === 'RECEIVED' && canReceive && (
+                      <div className="pt-3 border-t border-border space-y-2">
+                        {selected.stockUpdatedAt ? (
+                          <p className="text-sm text-muted-foreground">
+                            Stock was added on {new Date(selected.stockUpdatedAt).toLocaleString()}. You can set prices or subdivide items above.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-xs text-muted-foreground">
+                              Add this delivery to product stock when the previous dispatch is sold out. There is a dispatch whose products are still on sale—sell or clear that stock first, then click below. Do not mix dispatches.
+                            </p>
+                            <Button
+                              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                              onClick={handleAddToStock}
+                              disabled={addingToStock}
+                            >
+                              {addingToStock ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to stock'}
+                            </Button>
+                          </>
                         )}
                       </div>
                     )}
