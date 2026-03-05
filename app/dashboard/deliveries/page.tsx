@@ -562,7 +562,7 @@ export default function DeliveriesPage() {
                                   </div>
                                 )}
                               </div>
-                              {canReceive && it.unitCost != null && it.unitCost > 0 && (
+                              {canReceive && it.unitCost != null && it.unitCost > 0 && (!it.convertedQuantity || it.convertedQuantity <= 0) && (
                                 <Button
                                   variant="outline"
                                   size="sm"
