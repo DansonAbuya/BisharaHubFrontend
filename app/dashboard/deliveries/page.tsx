@@ -709,8 +709,8 @@ export default function DeliveriesPage() {
                   <div className="flex gap-2">
                     <Input
                       type="number"
-                      min={0.001}
-                      step={0.01}
+                      min={0}
+                      step="any"
                       value={convertTargetUnitSize}
                       onChange={(e) => setConvertTargetUnitSize(e.target.value)}
                       className="h-9 flex-1"
