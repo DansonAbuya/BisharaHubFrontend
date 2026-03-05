@@ -46,6 +46,7 @@ export default function DeliveriesPage() {
   const [addProductId, setAddProductId] = useState<string>('')
   const [addQty, setAddQty] = useState<string>('1')
   const [addCost, setAddCost] = useState<string>('')
+  const [addUnit, setAddUnit] = useState<string>('')
   const [addingItem, setAddingItem] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [addingToStock, setAddingToStock] = useState(false)
@@ -56,8 +57,11 @@ export default function DeliveriesPage() {
   // Conversion (subdivide received stock into sale units)
   const [convertOpen, setConvertOpen] = useState(false)
   const [convertItemId, setConvertItemId] = useState<string | null>(null)
+  const [convertItem, setConvertItem] = useState<SupplierDeliveryDto['items'][number] | null>(null)
   const [convertName, setConvertName] = useState('')
   const [convertPiecesPerUnit, setConvertPiecesPerUnit] = useState('')
+  const [convertTargetUnitSize, setConvertTargetUnitSize] = useState('')
+  const [convertTargetUnit, setConvertTargetUnit] = useState('')
   const [convertSourceQty, setConvertSourceQty] = useState('')
   const [converting, setConverting] = useState(false)
 
@@ -100,6 +104,7 @@ export default function DeliveriesPage() {
       setAddProductId(products[0]?.id ?? '')
       setAddQty('1')
       setAddCost('')
+      setAddUnit('')
       const initialReceived: Record<string, string> = {}
       ;(d.items ?? []).forEach((it) => {
         const base = it.receivedQuantity ?? it.quantity ?? 0
@@ -156,6 +161,7 @@ export default function DeliveriesPage() {
         productId: addProductId,
         quantity: qty,
         unitCost: cost,
+        unitOfMeasure: addUnit.trim() || undefined,
       })
       setSelected(updated)
       toast({ title: 'Item added' })
@@ -254,9 +260,12 @@ export default function DeliveriesPage() {
   const startConvert = (item: SupplierDeliveryDto['items'][number]) => {
     if (!selected) return
     setConvertItemId(item.id)
+    setConvertItem(item)
     const baseQty = item.receivedQuantity ?? item.quantity ?? 0
     setConvertName(item.productName || selected.supplierName || '')
     setConvertPiecesPerUnit('1')
+    setConvertTargetUnitSize('')
+    setConvertTargetUnit('')
     setConvertSourceQty(baseQty > 0 ? String(baseQty) : '1')
     setConvertOpen(true)
   }
@@ -266,27 +275,47 @@ export default function DeliveriesPage() {
     if (!selectedId || !convertItemId) return
     const sourceUsed = convertSourceQty.trim() ? parseInt(convertSourceQty, 10) : undefined
     const piecesPerUnit = convertPiecesPerUnit.trim() ? parseInt(convertPiecesPerUnit, 10) : NaN
+    const targetUnitSize = convertTargetUnitSize.trim() ? parseFloat(convertTargetUnitSize) : NaN
+    const targetUnit = convertTargetUnit.trim() || ''
+    const hasUnit = convertItem?.unitOfMeasure != null && convertItem.unitOfMeasure.trim() !== ''
+    const useUnitBased = hasUnit && !Number.isNaN(targetUnitSize) && targetUnitSize > 0 && targetUnit !== ''
+
     if (!convertName.trim()) {
       setError('Enter a name for the sale product')
       return
     }
-    if (Number.isNaN(piecesPerUnit) || piecesPerUnit <= 0) {
-      setError('Enter how many sale pieces you get from one source unit')
-      return
+    if (useUnitBased) {
+      // Unit-based subdivision (e.g. 10 kg → 500 g)
+      if (targetUnitSize <= 0 || !targetUnit) {
+        setError('Enter target unit size and unit (e.g. 500 and g for 500 g sub-units)')
+        return
+      }
+    } else {
+      if (Number.isNaN(piecesPerUnit) || piecesPerUnit <= 0) {
+        setError('Enter pieces per unit, or (if item has unit) target unit size + unit for unit-based subdivision')
+        return
+      }
     }
     setConverting(true)
     setError(null)
     try {
-      const updated = await convertDeliveryItem(selectedId, convertItemId, {
+      const payload: Parameters<typeof convertDeliveryItem>[2] = {
         targetName: convertName.trim(),
-        piecesPerUnit,
         sourceQuantityUsed: sourceUsed,
-      })
+      }
+      if (useUnitBased) {
+        payload.targetUnitSize = targetUnitSize
+        payload.targetUnit = targetUnit
+      } else {
+        payload.piecesPerUnit = piecesPerUnit
+      }
+      const updated = await convertDeliveryItem(selectedId, convertItemId, payload)
       setSelected(updated)
       toast({ title: 'Conversion recorded', description: 'Stock was moved into the new sale units.' })
       await load()
       setConvertOpen(false)
       setConvertItemId(null)
+      setConvertItem(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to convert item')
     } finally {
@@ -496,8 +525,9 @@ export default function DeliveriesPage() {
                                 <p className="text-sm font-medium text-foreground truncate">{it.productName}</p>
                                 <p className="text-xs text-muted-foreground">
                                   Supplier qty: {it.quantity}
-                                  {it.unitCost != null && <> · Unit cost: KES {it.unitCost}</>}
-                                  {it.lineTotal != null && <> · Line: KES {it.lineTotal}</>}
+                                  {it.unitOfMeasure ? ` ${it.unitOfMeasure}` : ''}
+                                  {it.unitCost != null && <> · Cost per {it.unitOfMeasure || 'unit'}: KES {it.unitCost}</>}
+                                  {it.lineTotal != null && <> · Line total: KES {it.lineTotal}</>}
                                 </p>
                                 {it.productPrice != null && (
                                   <p className="text-xs text-muted-foreground">Selling price: KES {it.productPrice}</p>
@@ -557,7 +587,7 @@ export default function DeliveriesPage() {
                         {selected.status === 'DRAFT' && (
                           <>
                             <p className="text-sm font-medium text-foreground">Add item</p>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                               <select
                                 className="h-10 px-3 rounded-md border border-border bg-background text-foreground text-sm"
                                 value={addProductId}
@@ -584,6 +614,12 @@ export default function DeliveriesPage() {
                                 onChange={(e) => setAddCost(e.target.value)}
                                 className="h-10"
                                 placeholder="Unit cost (optional)"
+                              />
+                              <Input
+                                value={addUnit}
+                                onChange={(e) => setAddUnit(e.target.value)}
+                                className="h-10"
+                                placeholder="Unit e.g. kg, g, piece"
                               />
                             </div>
                           </>
@@ -648,12 +684,12 @@ export default function DeliveriesPage() {
       </Dialog>
 
       {/* Conversion dialog: subdivide received stock into sale units */}
-      <Dialog open={convertOpen} onOpenChange={(o) => { setConvertOpen(o); if (!o) { setConvertItemId(null) } }}>
+      <Dialog open={convertOpen} onOpenChange={(o) => { setConvertOpen(o); if (!o) { setConvertItemId(null); setConvertItem(null) } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-foreground">Subdivide into sale units</DialogTitle>
             <DialogDescription>
-              Create smaller units of sale from the received stock. This will reduce the bulk stock and increase stock on the new sale product.
+              Create smaller units of sale from the received stock. Use unit-based (e.g. 10 kg → 500 g) or pieces per unit (e.g. 3 fillets per fish). Cost per sub-unit is calculated from supply cost; you can adjust price after.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-3" onSubmit={handleConvertSubmit}>
@@ -663,11 +699,47 @@ export default function DeliveriesPage() {
                 value={convertName}
                 onChange={(e) => setConvertName(e.target.value)}
                 className="mt-1 h-9"
-                placeholder="Customer-facing name e.g. Tilapia fillet 500g"
+                placeholder="e.g. Tilapia 500g or Tilapia fillet"
               />
             </div>
+            {convertItem?.unitOfMeasure ? (
+              <>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-foreground">Subdivide by unit (e.g. 10 kg → 500 g)</p>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min={0.001}
+                      step={0.01}
+                      value={convertTargetUnitSize}
+                      onChange={(e) => setConvertTargetUnitSize(e.target.value)}
+                      className="h-9 flex-1"
+                      placeholder="Size e.g. 500"
+                    />
+                    <select
+                      className="h-9 px-3 rounded-md border border-border bg-background text-foreground text-sm min-w-[80px]"
+                      value={convertTargetUnit}
+                      onChange={(e) => setConvertTargetUnit(e.target.value)}
+                    >
+                      <option value="">Unit</option>
+                      <option value="g">g</option>
+                      <option value="kg">kg</option>
+                      <option value="ml">ml</option>
+                      <option value="L">L</option>
+                      <option value="piece">piece</option>
+                    </select>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Source unit: {convertItem.unitOfMeasure}. Number of sub-units and cost per unit are calculated automatically.
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground">— or use pieces per unit below —</p>
+              </>
+            ) : null}
             <div>
-              <label className="text-sm font-medium text-foreground">Pieces per original unit</label>
+              <label className="text-sm font-medium text-foreground">
+                {convertItem?.unitOfMeasure ? 'Pieces per original unit (alternative)' : 'Pieces per original unit'}
+              </label>
               <Input
                 type="number"
                 min={1}
