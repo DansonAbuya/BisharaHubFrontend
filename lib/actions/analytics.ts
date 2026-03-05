@@ -26,6 +26,7 @@ export interface BusinessInsightsDto {
   period: string
   from: string
   to: string
+  productId: string | null
   revenue: number
   expenses: number
   profitLoss: number
@@ -39,11 +40,14 @@ export interface BusinessInsightsDto {
     revenue: number
   }>
   categoryPerformance: Array<{ category: string; revenue: number }>
-  staffActivity: Array<{
+  /** Staff performance: expenses logged, deliveries received, shipments created. */
+  staffPerformance: Array<{
     userId: string
     name: string
     expenseCount: number
     totalExpensesLogged: number
+    deliveriesReceivedCount: number
+    shipmentsCreatedCount: number
   }>
   periodBreakdown: Array<{
     label: string
@@ -57,19 +61,23 @@ export interface BusinessInsightsDto {
 export async function getBusinessInsights(
   period: string = 'MONTH',
   from?: string | null,
-  to?: string | null
+  to?: string | null,
+  productId?: string | null
 ): Promise<BusinessInsightsDto | null> {
   const params = new URLSearchParams()
   params.set('period', period)
   if (from) params.set('from', from)
   if (to) params.set('to', to)
+  if (productId) params.set('productId', productId)
   const res = await backendFetch(`/analytics/insights?${params.toString()}`)
   if (!res.ok) return null
   const data = await res.json()
+  const staff = data.staffPerformance ?? data.staffActivity ?? []
   return {
     period: data.period ?? period,
     from: data.from ?? '',
     to: data.to ?? '',
+    productId: data.productId ?? null,
     revenue: Number(data.revenue ?? 0),
     expenses: Number(data.expenses ?? 0),
     profitLoss: Number(data.profitLoss ?? 0),
@@ -86,11 +94,13 @@ export async function getBusinessInsights(
       category: String(c.category ?? ''),
       revenue: Number(c.revenue ?? 0),
     })),
-    staffActivity: (data.staffActivity ?? []).map((s: Record<string, unknown>) => ({
+    staffPerformance: staff.map((s: Record<string, unknown>) => ({
       userId: String(s.userId ?? ''),
       name: String(s.name ?? ''),
       expenseCount: Number(s.expenseCount ?? 0),
       totalExpensesLogged: Number(s.totalExpensesLogged ?? 0),
+      deliveriesReceivedCount: Number(s.deliveriesReceivedCount ?? 0),
+      shipmentsCreatedCount: Number(s.shipmentsCreatedCount ?? 0),
     })),
     periodBreakdown: (data.periodBreakdown ?? []).map((p: Record<string, unknown>) => ({
       label: String(p.label ?? ''),
