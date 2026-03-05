@@ -774,6 +774,8 @@ export interface SupplierDeliveryItemDto {
   quantity: number
   receivedQuantity?: number | null
   unitCost?: number | null
+  /** Unit of measure for quantity (e.g. kg, g, L, piece). */
+  unitOfMeasure?: string | null
   lineTotal?: number | null
   receivedLineTotal?: number | null
   productPrice?: number | null
