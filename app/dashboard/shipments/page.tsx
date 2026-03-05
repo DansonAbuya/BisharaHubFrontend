@@ -314,18 +314,18 @@ export default function ShipmentsPage() {
           </PageSection>
 
           <PageSection>
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center w-full">
               <Input
                 placeholder="Search by order ID, tracking number or customer..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-10 flex-1"
+                className="h-10 min-h-[44px] flex-1 w-full"
               />
 
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="h-10 px-3 rounded-md border border-border bg-background text-foreground whitespace-nowrap"
+                className="h-10 min-h-[44px] w-full sm:w-auto px-3 rounded-md border border-border bg-background text-foreground whitespace-nowrap"
               >
                 <option value="all">All Status</option>
                 <option value="CREATED">Awaiting dispatch</option>
@@ -350,7 +350,7 @@ export default function ShipmentsPage() {
                     return (
                       <div
                         key={shipment.id}
-                        className="p-4 border border-border rounded-lg hover:bg-secondary/50 transition"
+                        className="p-3 sm:p-4 border border-border rounded-lg hover:bg-secondary/50 transition"
                       >
                         {/* Header */}
                         <div className="flex items-start justify-between mb-4">

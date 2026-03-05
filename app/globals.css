@@ -18,6 +18,12 @@
  * - Section spacing: space-y-6 sm:space-y-8 (dashboards),
  *   space-y-8 sm:space-y-10 (marketing/auth)
  * - Card padding: p-4 sm:p-6 or CardHeader/CardContent with py-4 sm:py-5
+ *
+ * Responsive / mobile:
+ * - Use flex-col sm:flex-row (or md:) for stacking on small screens.
+ * - Touch targets: min-h-[44px] min-w-[44px] for icon buttons on mobile.
+ * - Dialogs: base DialogContent has max-h-[85dvh] overflow-y-auto and safe-area-pb.
+ * - Tables: use tableClassName="min-w-[...]" for horizontal scroll on narrow viewports.
  */
 
 :root {
@@ -152,6 +158,23 @@
   -webkit-overflow-scrolling: touch;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Responsive: minimum touch target (44px) for interactive elements on touch devices */
+@media (pointer: coarse) {
+  .touch-target-min button:not(.no-touch-target),
+  .touch-target-min a[href],
+  .touch-target-min [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Responsive container for page content – use on main content wrappers */
+.responsive-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 @layer base {

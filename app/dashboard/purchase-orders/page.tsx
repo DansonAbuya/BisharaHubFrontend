@@ -265,8 +265,8 @@ export default function PurchaseOrdersPage() {
                       {(po.status || 'Unknown').replace(/_/g, ' ')}
                     </Badge>
                   </div>
-                  <div className="rounded-md border border-border overflow-hidden">
-                    <Table>
+                  <div className="rounded-md border border-border overflow-hidden overflow-x-auto">
+                    <Table tableClassName="min-w-[480px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead className="text-foreground">Item</TableHead>
@@ -319,8 +319,8 @@ export default function PurchaseOrdersPage() {
           {detailLoading && !detailPo ? (
             <PageLoading message="Loading…" minHeight="80px" />
           ) : detailPo ? (
-            <div className="rounded-md border border-border overflow-hidden">
-              <Table>
+            <div className="rounded-md border border-border overflow-hidden overflow-x-auto">
+              <Table tableClassName="min-w-[520px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-foreground">Product / Description</TableHead>
