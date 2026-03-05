@@ -23,8 +23,10 @@ import {
 import { listOrders } from '@/lib/actions/orders'
 import { getBusinessInsights } from '@/lib/actions/analytics'
 import { getAnalyticsExportCsv } from '@/lib/actions/reports'
+import { listProducts } from '@/lib/actions/products'
 import type { BusinessInsightsDto } from '@/lib/actions/analytics'
 import type { OrderDto } from '@/lib/api'
+import type { ProductDto } from '@/lib/api'
 import { Download, TrendingUp, TrendingDown, Calendar, Users, Package } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -37,6 +39,7 @@ const PERIOD_OPTIONS = [
   { value: 'WEEK', label: 'Last 7 Days' },
   { value: 'MONTH', label: 'Last 30 Days' },
   { value: 'QUARTER', label: 'Last 90 Days' },
+  { value: 'YEAR', label: 'Last Year' },
   { value: 'CUSTOM', label: 'Custom Range' },
 ]
 
@@ -79,6 +82,8 @@ export default function AnalyticsPage() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
+  const [productId, setProductId] = useState<string>('')
+  const [products, setProducts] = useState<ProductDto[]>([])
   const [insights, setInsights] = useState<BusinessInsightsDto | null>(null)
   const [orders, setOrders] = useState<OrderDto[]>([])
   const [loading, setLoading] = useState(true)
@@ -88,9 +93,9 @@ export default function AnalyticsPage() {
   const loadInsights = useCallback(async () => {
     const from = period === 'CUSTOM' && customFrom ? customFrom : undefined
     const to = period === 'CUSTOM' && customTo ? customTo : undefined
-    const data = await getBusinessInsights(period, from, to)
+    const data = await getBusinessInsights(period, from, to, productId || undefined)
     setInsights(data)
-  }, [period, customFrom, customTo])
+  }, [period, customFrom, customTo, productId])
 
   useEffect(() => {
     if (!canAccessAnalytics) return
@@ -98,20 +103,27 @@ export default function AnalyticsPage() {
     async function load() {
       setLoading(true)
       try {
-        const [insightsData, ordersData] = await Promise.all([
-          getBusinessInsights(period, period === 'CUSTOM' ? customFrom || undefined : undefined, period === 'CUSTOM' ? customTo || undefined : undefined),
+        const [insightsData, ordersData, productsData] = await Promise.all([
+          getBusinessInsights(
+            period,
+            period === 'CUSTOM' ? customFrom || undefined : undefined,
+            period === 'CUSTOM' ? customTo || undefined : undefined,
+            productId || undefined
+          ),
           listOrders().catch(() => [] as OrderDto[]),
+          listProducts().catch(() => [] as ProductDto[]),
         ])
         if (cancelled) return
         setInsights(insightsData ?? null)
         setOrders(ordersData)
+        setProducts(productsData ?? [])
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
     load()
     return () => { cancelled = true }
-  }, [canAccessAnalytics, period, customFrom, customTo])
+  }, [canAccessAnalytics, period, customFrom, customTo, productId])
 
   const orderStatusData = [
     { name: 'Pending', value: orders.filter((o) => o.status === 'pending').length },
@@ -205,6 +217,23 @@ export default function AnalyticsPage() {
                 <Button size="sm" onClick={loadInsights}>Apply</Button>
               </div>
             )}
+            <div className="flex items-center gap-2 flex-wrap ml-2 border-l border-border pl-2">
+              <label htmlFor="analytics-product" className="text-sm text-muted-foreground whitespace-nowrap">Product:</label>
+              <select
+                id="analytics-product"
+                value={productId}
+                onChange={(e) => setProductId(e.target.value)}
+                className="h-8 px-2 rounded-md border border-border bg-background text-sm min-w-[160px]"
+              >
+                <option value="">All products</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              {productId && (
+                <Button size="sm" variant="ghost" onClick={() => setProductId('')}>Clear</Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       </PageSection>
@@ -220,6 +249,7 @@ export default function AnalyticsPage() {
               <div className="text-2xl font-bold text-primary">{formatPrice(revenue)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {insights?.from} – {insights?.to}
+                {insights?.productId ? ' (by product)' : ''}
               </p>
             </CardContent>
           </Card>
@@ -377,30 +407,37 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          {/* Staff activity */}
+          {/* Staff performance: expenses + deliveries received */}
           <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-foreground flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Staff Activity
+                Staff Performance
               </CardTitle>
-              <CardDescription>Expenses logged by staff in selected period</CardDescription>
+              <CardDescription>
+                Expenses logged, supplier deliveries received, and shipments created in the selected period.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              {insights?.staffActivity && insights.staffActivity.length > 0 ? (
+              {insights?.staffPerformance && insights.staffPerformance.length > 0 ? (
                 <div className="space-y-4">
-                  {insights.staffActivity.map((s) => (
-                    <div key={s.userId} className="flex items-center justify-between">
-                      <div>
+                  {insights.staffPerformance.map((s) => (
+                    <div key={s.userId} className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="min-w-0">
                         <p className="font-medium text-foreground">{s.name}</p>
-                        <p className="text-xs text-muted-foreground">{s.expenseCount} expense(s) logged</p>
+                        <p className="text-xs text-muted-foreground">
+                          {s.expenseCount} expense(s) · {formatPrice(s.totalExpensesLogged)} total · {s.deliveriesReceivedCount} delivery(ies) received · {s.shipmentsCreatedCount} shipment(s) created
+                        </p>
                       </div>
-                      <p className="font-bold text-foreground">{formatPrice(s.totalExpensesLogged)}</p>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-sm text-muted-foreground">{s.deliveriesReceivedCount} received · {s.shipmentsCreatedCount} shipments</span>
+                        <p className="font-bold text-foreground">{formatPrice(s.totalExpensesLogged)}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-muted-foreground text-sm py-8 text-center">No staff expense activity in this period</p>
+                <p className="text-muted-foreground text-sm py-8 text-center">No staff activity in this period</p>
               )}
             </CardContent>
           </Card>
