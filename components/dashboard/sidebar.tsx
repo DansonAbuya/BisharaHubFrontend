@@ -202,7 +202,7 @@ export function Sidebar({ onClose }: SidebarProps) {
                 href={item.href}
                 onClick={() => onClose?.()}
                 className={cn(
-                  'flex items-center gap-3 px-4 min-h-[40px] rounded-md text-sm font-medium transition-colors',
+                  'flex items-center gap-3 px-4 min-h-[44px] rounded-md text-sm font-medium transition-colors',
                   isActive
                     ? 'bg-primary-foreground text-primary'
                     : 'text-primary-foreground/90 hover:bg-primary/80 active:bg-primary/70',
@@ -219,9 +219,9 @@ export function Sidebar({ onClose }: SidebarProps) {
   }
 
   return (
-    <aside className="w-64 h-full bg-primary text-primary-foreground border-r border-sidebar-border shadow-sm flex flex-col">
+    <aside className="w-64 min-w-64 h-full bg-primary text-primary-foreground border-r border-sidebar-border shadow-sm flex flex-col safe-area-pl">
       {/* Logo */}
-      <div className="p-5 border-b border-primary/30">
+      <div className="p-4 sm:p-5 border-b border-primary/30">
         <Link href="/dashboard" className="flex items-center gap-2">
           <Image
             src="/logo-favicon.png"

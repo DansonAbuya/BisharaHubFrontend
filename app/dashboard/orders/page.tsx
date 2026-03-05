@@ -537,11 +537,11 @@ export default function OrdersPage() {
           className="h-10 flex-1 text-sm"
         />
 
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="h-10 px-3 rounded-md border border-border bg-background text-foreground flex-1 text-sm"
+            className="h-10 min-h-[44px] px-3 rounded-md border border-border bg-background text-foreground w-full flex-1 text-sm"
           >
             <option value="all">All Status</option>
             {isCustomerView && (
@@ -555,7 +555,7 @@ export default function OrdersPage() {
             <option value="cancelled">Cancelled</option>
           </select>
 
-          <Button variant="outline" className="h-10 gap-2 bg-transparent text-sm px-3">
+          <Button variant="outline" className="h-10 min-h-[44px] gap-2 bg-transparent text-sm px-3 w-full sm:w-auto shrink-0">
             <Filter className="w-4 h-4" />
             <span className="hidden sm:inline">More</span>
           </Button>
