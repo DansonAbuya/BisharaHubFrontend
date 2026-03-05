@@ -57,13 +57,14 @@ export async function createSupplierDelivery(body: { supplierId?: string | null;
   return res.json()
 }
 
-export async function addSupplierDeliveryItem(deliveryId: string, body: { productId: string; quantity: number; unitCost?: number | null }): Promise<SupplierDeliveryDto> {
+export async function addSupplierDeliveryItem(deliveryId: string, body: { productId: string; quantity: number; unitCost?: number | null; unitOfMeasure?: string | null }): Promise<SupplierDeliveryDto> {
   const res = await backendFetch(`/supplier-deliveries/${deliveryId}/items`, {
     method: 'POST',
     body: JSON.stringify({
       productId: body.productId,
       quantity: body.quantity,
       unitCost: body.unitCost ?? undefined,
+      unitOfMeasure: body.unitOfMeasure ?? undefined,
     }),
   })
   if (!res.ok) {
@@ -135,8 +136,14 @@ export async function convertDeliveryItem(
     targetProductId?: string | null
     targetName?: string | null
     targetPrice?: number | null
-    producedQuantity: number
+    producedQuantity?: number | null
     sourceQuantityUsed?: number | null
+    /** Pieces per source unit (e.g. 3 fillets per fish). */
+    piecesPerUnit?: number | null
+    /** For unit-based subdivision: size of each sub-unit (e.g. 500 for 500 g). */
+    targetUnitSize?: number | null
+    /** For unit-based subdivision: unit (e.g. "g", "kg", "L", "ml", "piece"). */
+    targetUnit?: string | null
     note?: string | null
   },
 ): Promise<SupplierDeliveryDto> {
@@ -146,8 +153,11 @@ export async function convertDeliveryItem(
       targetProductId: body.targetProductId ?? undefined,
       targetName: body.targetName ?? undefined,
       targetPrice: body.targetPrice ?? undefined,
-      producedQuantity: body.producedQuantity,
+      producedQuantity: body.producedQuantity ?? undefined,
       sourceQuantityUsed: body.sourceQuantityUsed ?? undefined,
+      piecesPerUnit: body.piecesPerUnit ?? undefined,
+      targetUnitSize: body.targetUnitSize ?? undefined,
+      targetUnit: body.targetUnit ?? undefined,
       note: body.note ?? undefined,
     }),
   })

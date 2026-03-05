@@ -360,7 +360,7 @@ export default function PurchaseOrdersPage() {
           <DialogHeader>
             <DialogTitle className="text-foreground">New purchase order</DialogTitle>
             <DialogDescription>
-              Specify what you want from the supplier. You can use descriptions and units (e.g. kg). Prices are optional – suppliers will quote on dispatch.
+              Specify what you want from the supplier. For each line set the <strong>unit</strong> (kg, g, piece, etc.) so quantity and cost are clear – e.g. 10 kg at 2000 per kg means total KES 20,000. Prices are optional; suppliers quote on dispatch.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleCreate}>
@@ -397,7 +397,7 @@ export default function PurchaseOrdersPage() {
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">Items</p>
               <p className="text-xs text-muted-foreground">
-                For each line, you can either choose a product or just describe what you want (e.g. fish size category, packaging). Prices are optional.
+                For each line, choose a product or describe what you want. Set the <strong>unit</strong> (e.g. kg, g, piece) so quantity and cost are clear: e.g. 10 kg at 2000 per kg = KES 20,000 total. Prices are optional – suppliers quote on dispatch.
               </p>
               <div className="space-y-2">
                 {items.map((row, index) => (
@@ -427,19 +427,38 @@ export default function PurchaseOrdersPage() {
                       />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 mt-1">
-                      <Input
-                        placeholder="Unit (e.g. kg, piece, box)"
-                        className="h-9 text-xs"
-                        value={row.unitOfMeasure}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          setItems((prev) => prev.map((r, i) => (i === index ? { ...r, unitOfMeasure: v } : r)))
-                        }}
-                      />
+                      <div className="flex gap-1 items-center">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">Unit:</span>
+                        <select
+                          className="h-9 px-2 rounded-md border border-border bg-background text-foreground text-xs min-w-[70px]"
+                          value={row.unitOfMeasure && ['kg', 'g', 'L', 'ml', 'piece', 'box'].includes(row.unitOfMeasure) ? row.unitOfMeasure : ''}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setItems((prev) => prev.map((r, i) => (i === index ? { ...r, unitOfMeasure: v } : r)))
+                          }}
+                        >
+                          <option value="">—</option>
+                          <option value="kg">kg</option>
+                          <option value="g">g</option>
+                          <option value="L">L</option>
+                          <option value="ml">ml</option>
+                          <option value="piece">piece</option>
+                          <option value="box">box</option>
+                        </select>
+                        <Input
+                          placeholder="or custom (e.g. crate)"
+                          className="h-9 text-xs flex-1 min-w-0"
+                          value={row.unitOfMeasure && !['kg', 'g', 'L', 'ml', 'piece', 'box'].includes(row.unitOfMeasure) ? row.unitOfMeasure : ''}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setItems((prev) => prev.map((r, i) => (i === index ? { ...r, unitOfMeasure: v } : r)))
+                          }}
+                        />
+                      </div>
                       <Input
                         type="number"
                         min={1}
-                        placeholder="Requested qty"
+                        placeholder="Qty"
                         className="h-9 text-xs"
                         value={row.requestedQuantity}
                         onChange={(e) => {
@@ -451,7 +470,7 @@ export default function PurchaseOrdersPage() {
                         type="number"
                         min={0}
                         step={0.01}
-                        placeholder="Expected unit cost (optional)"
+                        placeholder="Cost per unit (optional)"
                         className="h-9 text-xs"
                         value={row.expectedUnitCost}
                         onChange={(e) => {
